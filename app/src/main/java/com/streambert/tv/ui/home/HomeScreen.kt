@@ -154,7 +154,19 @@ private fun HomeContent(
     onMarkWatched: (CatalogItem) -> Unit,
     onMarkUnwatched: (CatalogItem) -> Unit
 ) {
-    val rows = state.homeRows
+    // ── Tab state (driven by the nav rail) ───────────────────────────────────
+    var currentTab by remember { mutableStateOf(HomeTab.HOME) }
+
+    // Select rows based on the active tab
+    val rows: List<CatalogRow> = when (currentTab) {
+        HomeTab.MOVIES -> state.moviesRows
+        HomeTab.SHOWS -> state.showsRows
+        HomeTab.MY_LIST -> buildList {
+            if (state.myList.isNotEmpty()) add(CatalogRow("My List", state.myList))
+            if (state.traktWatchlist.isNotEmpty()) add(CatalogRow("Trakt Watchlist", state.traktWatchlist))
+        }
+        else -> state.homeRows
+    }
 
     // ── Focus-driven backdrop state ──────────────────────────────────────────
     // "focusedItem" is set when a row poster gains focus; null when idle.
@@ -209,6 +221,8 @@ private fun HomeContent(
 
         // LAYER 3 — Nav rail (z-index 2)
         NavRail(
+            currentTab = currentTab,
+            onTabSelected = { currentTab = it },
             onSearch = onSearch,
             onSettings = onSettings,
             modifier = Modifier
@@ -238,20 +252,29 @@ private fun HomeContent(
             }
 
             // ── Genre chips ──────────────────────────────────────────────────
-            item(key = "genres") {
-                GenreChipsRow(
-                    onOpenGenre = { onOpenGenre(it, "all") },
-                    firstItemFocusRequester = firstCardFocus
-                )
+            if (currentTab != HomeTab.MY_LIST) {
+                item(key = "genres_${currentTab.name}") {
+                    val genreMedia = when (currentTab) {
+                        HomeTab.MOVIES -> "movie"
+                        HomeTab.SHOWS -> "tv"
+                        else -> "all"
+                    }
+                    GenreChipsRow(
+                        onOpenGenre = { onOpenGenre(it, genreMedia) },
+                        firstItemFocusRequester = firstCardFocus
+                    )
+                }
             }
 
-            // ── Services ─────────────────────────────────────────────────────
-            item(key = "services") {
-                ServicesRow(onOpenService = onOpenService)
+            // ── Services (Home tab only) ─────────────────────────────────────
+            if (currentTab == HomeTab.HOME) {
+                item(key = "services") {
+                    ServicesRow(onOpenService = onOpenService)
+                }
             }
 
-            // ── Continue Watching ────────────────────────────────────────────
-            if (state.continueWatching.isNotEmpty()) {
+            // ── Continue Watching (Home tab only) ────────────────────────────
+            if (currentTab == HomeTab.HOME && state.continueWatching.isNotEmpty()) {
                 item(key = "continue_watching") {
                     ContinueWatchingRow(
                         entries = state.continueWatching,
@@ -274,8 +297,8 @@ private fun HomeContent(
                 }
             }
 
-            // ── Trakt watchlist ──────────────────────────────────────────────
-            if (state.traktWatchlist.isNotEmpty()) {
+            // ── Trakt watchlist (Home tab only, when not in My List tab) ─────
+            if (currentTab == HomeTab.HOME && state.traktWatchlist.isNotEmpty()) {
                 item(key = "trakt_watchlist") {
                     StandardRow(
                         title = "Your Trakt Watchlist",
@@ -288,20 +311,22 @@ private fun HomeContent(
                 }
             }
 
-            // ── Personalized recommendation rows ─────────────────────────────
-            items(state.recommendedRows, key = { "rec_${it.title}" }) { row ->
-                StandardRow(
-                    title = row.title,
-                    items = row.items,
-                    onSelect = onSelect,
-                    onFocus = { focusedItem = it },
-                    onLongPress = { optionsItem = it },
-                    firstItemFocusRequester = null
-                )
+            // ── Personalized recommendation rows (Home tab only) ─────────────
+            if (currentTab == HomeTab.HOME) {
+                items(state.recommendedRows, key = { "rec_${it.title}" }) { row ->
+                    StandardRow(
+                        title = row.title,
+                        items = row.items,
+                        onSelect = onSelect,
+                        onFocus = { focusedItem = it },
+                        onLongPress = { optionsItem = it },
+                        firstItemFocusRequester = null
+                    )
+                }
             }
 
-            // ── Catalog rows (Trending, Top 10, etc.) ────────────────────────
-            itemsIndexed(rows, key = { _, it -> it.title }) { _, row ->
+            // ── Catalog rows (tab-specific) ──────────────────────────────────
+            itemsIndexed(rows, key = { _, it -> "${currentTab.name}_${it.title}" }) { _, row ->
                 if (row.ranked) {
                     Top10Row(
                         title = row.title,
@@ -320,6 +345,25 @@ private fun HomeContent(
                         onLongPress = { optionsItem = it },
                         firstItemFocusRequester = null
                     )
+                }
+            }
+
+            // ── Empty state for My List ──────────────────────────────────────
+            if (currentTab == HomeTab.MY_LIST && state.myList.isEmpty() && state.traktWatchlist.isEmpty()) {
+                item(key = "my_list_empty") {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Your list is empty.\nOpen a title and choose \u201cMy List\u201d to add it.",
+                            color = Color(0xFFB5B5BE),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
@@ -466,6 +510,8 @@ private fun HeroInfoBlock(
 
 @Composable
 private fun NavRail(
+    currentTab: HomeTab,
+    onTabSelected: (HomeTab) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier
@@ -479,13 +525,13 @@ private fun NavRail(
     ) {
         NavRailIcon(Icons.Default.Search, "Search", onClick = onSearch)
         Spacer(Modifier.height(20.dp))
-        NavRailIcon(Icons.Default.Home, "Home", selected = true, onClick = {})
+        NavRailIcon(Icons.Default.Home, "Home", selected = currentTab == HomeTab.HOME, onClick = { onTabSelected(HomeTab.HOME) })
         Spacer(Modifier.height(20.dp))
-        NavRailIcon(Icons.Default.Movie, "Movies", onClick = {})
+        NavRailIcon(Icons.Default.Movie, "Movies", selected = currentTab == HomeTab.MOVIES, onClick = { onTabSelected(HomeTab.MOVIES) })
         Spacer(Modifier.height(20.dp))
-        NavRailIcon(Icons.Default.Tv, "TV Shows", onClick = {})
+        NavRailIcon(Icons.Default.Tv, "TV Shows", selected = currentTab == HomeTab.SHOWS, onClick = { onTabSelected(HomeTab.SHOWS) })
         Spacer(Modifier.height(20.dp))
-        NavRailIcon(Icons.Default.BookmarkBorder, "My List", onClick = {})
+        NavRailIcon(Icons.Default.BookmarkBorder, "My List", selected = currentTab == HomeTab.MY_LIST, onClick = { onTabSelected(HomeTab.MY_LIST) })
         Spacer(Modifier.height(20.dp))
         NavRailIcon(Icons.Default.Settings, "Settings", onClick = onSettings)
     }
