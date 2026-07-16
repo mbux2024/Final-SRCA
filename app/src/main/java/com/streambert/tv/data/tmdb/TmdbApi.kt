@@ -92,6 +92,30 @@ interface TmdbApi {
         @Query("watch_region") region: String
     ): ProvidersResponse
 
+    @GET("movie/popular")
+    suspend fun popularMovies(
+        @Query("language") language: String,
+        @Query("page") page: Int = 1
+    ): TmdbPage<TmdbResult>
+
+    @GET("tv/popular")
+    suspend fun popularTv(
+        @Query("language") language: String,
+        @Query("page") page: Int = 1
+    ): TmdbPage<TmdbResult>
+
+    @GET("movie/now_playing")
+    suspend fun nowPlayingMovies(
+        @Query("language") language: String,
+        @Query("page") page: Int = 1
+    ): TmdbPage<TmdbResult>
+
+    @GET("movie/upcoming")
+    suspend fun upcomingMovies(
+        @Query("language") language: String,
+        @Query("page") page: Int = 1
+    ): TmdbPage<TmdbResult>
+
     @GET("movie/top_rated")
     suspend fun topRatedMovies(
         @Query("language") language: String,

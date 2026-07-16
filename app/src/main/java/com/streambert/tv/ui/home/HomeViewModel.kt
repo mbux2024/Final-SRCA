@@ -345,6 +345,9 @@ class HomeViewModel(
                 val top10Movies = async { safe { repo.top10MoviesToday() } }
                 val top10Tv = async { safe { repo.top10TvToday() } }
                 val airingToday = async { safe { repo.airingTodayTv() } }
+                val popularMovies = async { safe { repo.popularMovies() } }
+                val popularTv = async { safe { repo.popularTv() } }
+                val nowPlaying = async { safe { repo.nowPlayingMovies() } }
                 val netflixTv = async { safe { repo.tvByProvider(WatchProviders.NETFLIX) } }
                 val appleTv = async { safe { repo.tvByProvider(WatchProviders.APPLE_TV_PLUS) } }
                 val disneyTv = async { safe { repo.tvByProvider(WatchProviders.DISNEY_PLUS) } }
@@ -360,6 +363,9 @@ class HomeViewModel(
                 val t10m = top10Movies.await()
                 val t10t = top10Tv.await()
                 val air = airingToday.await()
+                val popM = popularMovies.await()
+                val popT = popularTv.await()
+                val nowP = nowPlaying.await()
                 val nfTv = netflixTv.await()
                 val apTv = appleTv.await()
                 val dyTv = disneyTv.await()
@@ -370,20 +376,24 @@ class HomeViewModel(
                 val trMv = topRatedMovies.await()
                 val trTv = topRatedTv.await()
 
-                // Order requested for Home: Trending, Top 10, Airing Today, Top Rated.
+                // Home: Trending, Top 10, New Releases, Popular, Airing Today, Top Rated
                 val home = buildList {
                     addRow("Trending Movies", tm)
                     addRow("Trending TV Shows", tt)
                     addRow("Top 10 Movies Today", t10m, ranked = true)
                     addRow("Top 10 TV Shows Today", t10t, ranked = true)
-                    addRow("Airing Today in the U.S.", air)
+                    addRow("New Releases", nowP)
+                    addRow("Popular Movies", popM)
+                    addRow("Popular TV Shows", popT)
+                    addRow("Airing Today", air)
                     addRow("Top Rated Movies", trMv)
                     addRow("Top Rated TV Shows", trTv)
                 }
                 val shows = buildList {
                     addRow("Trending TV Shows", tt)
                     addRow("Top 10 TV Shows Today", t10t, ranked = true)
-                    addRow("Airing Today in the U.S.", air)
+                    addRow("Popular TV Shows", popT)
+                    addRow("Airing Today", air)
                     addRow("Popular on Netflix", nfTv)
                     addRow("Apple TV+ Shows", apTv)
                     addRow("Popular on Disney+", dyTv)
@@ -393,6 +403,8 @@ class HomeViewModel(
                 val movies = buildList {
                     addRow("Trending Movies", tm)
                     addRow("Top 10 Movies Today", t10m, ranked = true)
+                    addRow("New Releases", nowP)
+                    addRow("Popular Movies", popM)
                     addRow("Netflix Movies", nfMv)
                     addRow("Disney+ Movies", dyMv)
                     addRow("Prime Video Movies", prMv)

@@ -67,6 +67,18 @@ class TmdbRepository(
     suspend fun topRatedTvShows(): List<CatalogItem> =
         api.topRatedTv(lang()).results.dropAnime().map { it.toCatalogItem(MediaType.TV) }
 
+    suspend fun popularMovies(): List<CatalogItem> =
+        api.popularMovies(lang()).results.dropAnime().map { it.toCatalogItem(MediaType.MOVIE) }
+
+    suspend fun popularTv(): List<CatalogItem> =
+        api.popularTv(lang()).results.dropAnime().map { it.toCatalogItem(MediaType.TV) }
+
+    suspend fun nowPlayingMovies(): List<CatalogItem> =
+        api.nowPlayingMovies(lang()).results.dropAnime().map { it.toCatalogItem(MediaType.MOVIE) }
+
+    suspend fun upcomingMovies(): List<CatalogItem> =
+        api.upcomingMovies(lang()).results.dropAnime().map { it.toCatalogItem(MediaType.MOVIE) }
+
     /** TV shows airing today. */
     suspend fun airingTodayTv(): List<CatalogItem> =
         api.airingTodayTv(lang()).results.dropAnime().map { it.toCatalogItem(MediaType.TV) }
