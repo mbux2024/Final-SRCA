@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG-ONLY network security config.
+
+  Adds "user"-installed CAs to the set of trust anchors (on top of the system
+  CAs). This lets the debug build work behind a corporate proxy / VPN / HTTPS-
+  scanning antivirus *if* you install that tool's CA certificate on the
+  emulator/device. Release builds do NOT use this file, so they keep the
+  default, secure system-only trust.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
