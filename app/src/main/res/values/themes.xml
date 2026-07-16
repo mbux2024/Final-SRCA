@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Compose for TV draws its own Material theme (see ui/theme/Theme.kt).
+      This XML theme only needs to provide a dark, action-bar-less window so
+      there is no flash of a light system theme before Compose takes over.
+    -->
+    <style name="Theme.StreambertTV" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+    </style>
+</resources>
