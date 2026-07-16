@@ -58,13 +58,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
-import androidx.tv.material3.CircularProgressIndicator
 import androidx.tv.material3.Icon
-import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.streambert.tv.data.model.CatalogItem
+import com.streambert.tv.ui.components.LoadingIndicator
 import com.streambert.tv.ui.components.SideNavigation
 import com.streambert.tv.ui.theme.NetflixRed
 import com.streambert.tv.ui.theme.PrimeBg
@@ -171,9 +170,11 @@ fun SearchScreen(
                             modifier = Modifier.weight(1f)
                         )
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(
-                                onClick = { searchQuery = "" },
-                                modifier = Modifier.size(24.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable { searchQuery = "" },
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Clear,
@@ -304,7 +305,7 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = NetflixRed)
+                            LoadingIndicator()
                         }
                     }
 
