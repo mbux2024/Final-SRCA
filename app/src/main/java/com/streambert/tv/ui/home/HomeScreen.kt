@@ -274,7 +274,7 @@ private fun HomeContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Transparent),
-                    contentPadding = PaddingValues(bottom = 48.dp)
+                    contentPadding = PaddingValues(top = 80.dp, bottom = 48.dp)
                 ) {
                     // ── Genre chips ──────────────────────────────────────────
                     if (currentTab != HomeTab.MY_LIST) {
