@@ -182,14 +182,10 @@ private fun HomeContent(
 
     // LazyColumn scroll state — snap focused row to top of scrollable area.
     // ONLY fires when the row index actually CHANGES (not on horizontal moves
-    // within the same row). This prevents Compose's default BringIntoView from
-    // conflicting with our manual scroll.
+    // within the same row).
     val listState = rememberLazyListState()
     LaunchedEffect(focusedRowIndex) {
-        if (focusedRowIndex >= 0 && focusedRowIndex != lastSnappedIndex) {
-            lastSnappedIndex = focusedRowIndex
-            // Immediately scroll (not animate) to prevent conflict with
-            // Compose's BringIntoView which runs on the same frame.
+        if (focusedRowIndex >= 0) {
             listState.scrollToItem(index = focusedRowIndex, scrollOffset = 0)
         }
     }
@@ -330,7 +326,10 @@ private fun HomeContent(
                                         overview = null, posterUrl = p.posterUrl,
                                         backdropUrl = p.backdropUrl, rating = 0.0, year = null
                                     )
-                                    focusedRowIndex = idx
+                                    if (idx != lastSnappedIndex) {
+                                        lastSnappedIndex = idx
+                                        focusedRowIndex = idx
+                                    }
                                 },
                                 onLongPress = { p ->
                                     optionsItem = CatalogItem(
@@ -353,7 +352,7 @@ private fun HomeContent(
                                 onSelect = onSelect,
                                 onFocus = {
                                     focusedItem = it
-                                    focusedRowIndex = idx
+                                    if (idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx }
                                 },
                                 onLongPress = { optionsItem = it },
                                 firstItemFocusRequester = null
@@ -373,7 +372,7 @@ private fun HomeContent(
                                     onSelect = onSelect,
                                     onFocus = {
                                         focusedItem = it
-                                        focusedRowIndex = idx
+                                        if (idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx }
                                     },
                                     onLongPress = { optionsItem = it },
                                     firstItemFocusRequester = null
@@ -394,7 +393,7 @@ private fun HomeContent(
                                     onSelect = onSelect,
                                     onFocus = {
                                         focusedItem = it
-                                        focusedRowIndex = idx
+                                        if (idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx }
                                     },
                                     onLongPress = { optionsItem = it },
                                     firstItemFocusRequester = null
@@ -406,7 +405,7 @@ private fun HomeContent(
                                     onSelect = onSelect,
                                     onFocus = {
                                         focusedItem = it
-                                        focusedRowIndex = idx
+                                        if (idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx }
                                     },
                                     onLongPress = { optionsItem = it },
                                     firstItemFocusRequester = null
