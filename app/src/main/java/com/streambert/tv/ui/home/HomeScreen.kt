@@ -215,6 +215,9 @@ private fun HomeContent(
     // Long-press options target.
     var optionsItem by remember { mutableStateOf<CatalogItem?>(null) }
 
+    // Continue Watching long-press target (separate, simpler menu)
+    var cwOptionsEntry by remember { mutableStateOf<WatchProgress?>(null) }
+
     // First focusable item in the LazyColumn (genre chips row).
     val firstCardFocus = remember { FocusRequester() }
     var didAutoFocus by remember { mutableStateOf(false) }
@@ -298,10 +301,12 @@ private fun HomeContent(
                                 HomeTab.SHOWS -> "tv"
                                 else -> "all"
                             }
-                            GenreChipsRow(
-                                onOpenGenre = { onOpenGenre(it, genreMedia) },
-                                firstItemFocusRequester = firstCardFocus
-                            )
+                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
+                                GenreChipsRow(
+                                    onOpenGenre = { onOpenGenre(it, genreMedia) },
+                                    firstItemFocusRequester = firstCardFocus
+                                )
+                            }
                         }
                     }
 
@@ -309,7 +314,9 @@ private fun HomeContent(
                     if (currentTab == HomeTab.HOME) {
                         val idx = nextIdx; nextIdx++
                         item(key = "services") {
-                            ServicesRow(onOpenService = onOpenService)
+                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
+                                ServicesRow(onOpenService = onOpenService)
+                            }
                         }
                     }
 
@@ -332,11 +339,7 @@ private fun HomeContent(
                                     }
                                 },
                                 onLongPress = { p ->
-                                    optionsItem = CatalogItem(
-                                        id = p.tmdbId, type = p.mediaType, title = p.title,
-                                        overview = null, posterUrl = p.posterUrl,
-                                        backdropUrl = p.backdropUrl, rating = 0.0, year = null
-                                    )
+                                    cwOptionsEntry = p
                                 }
                             )
                         }
@@ -437,7 +440,7 @@ private fun HomeContent(
         }
     }
 
-    // ── Options dialog ───────────────────────────────────────────────────────
+    // ── Options dialog (regular tiles: Add to List, Mark Watched/Unwatched) ──
     optionsItem?.let { item ->
         val inList = state.myList.any { it.id == item.id && it.type == item.type }
         MediaOptionsDialog(
@@ -448,6 +451,23 @@ private fun HomeContent(
             onMarkWatched = { onMarkWatched(item) },
             onMarkUnwatched = { onMarkUnwatched(item) },
             onDismiss = { optionsItem = null }
+        )
+    }
+
+    // ── Continue Watching options dialog (simplified: Details, Start Over, Remove) ──
+    cwOptionsEntry?.let { entry ->
+        ContinueWatchingOptionsDialog(
+            entry = entry,
+            onViewDetails = {
+                onSelect(CatalogItem(
+                    id = entry.tmdbId, type = entry.mediaType, title = entry.title,
+                    overview = null, posterUrl = entry.posterUrl,
+                    backdropUrl = entry.backdropUrl, rating = 0.0, year = null
+                ))
+            },
+            onStartFromBeginning = { onResume(entry.copy(positionMs = 0)) },
+            onRemove = { /* TODO: remove from continue watching */ },
+            onDismiss = { cwOptionsEntry = null }
         )
     }
 }
@@ -728,5 +748,128 @@ private fun ServiceCard(service: StreamingService, onClick: () -> Unit) {
                 .fillMaxSize()
                 .background(Color(service.brandColor))
         )
+    }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTINUE WATCHING OPTIONS DIALOG (simplified: Details, Start Over, Remove)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ContinueWatchingOptionsDialog(
+    entry: WatchProgress,
+    onViewDetails: () -> Unit,
+    onStartFromBeginning: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val firstFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { firstFocus.requestFocusAfterFrames() }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color(0xCC000000)),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.tv.material3.Surface(
+                colors = androidx.tv.material3.SurfaceDefaults.colors(containerColor = Color(0xFF16161C)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.width(420.dp)
+            ) {
+                Column(Modifier.padding(24.dp)) {
+                    // Header
+                    Text(
+                        entry.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (entry.season > 0) {
+                        Text(
+                            "S${entry.season}E${entry.episode}  •  ${(entry.fraction * 100).toInt()}% watched",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFB0B0B8),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    } else {
+                        Text(
+                            "${(entry.fraction * 100).toInt()}% watched",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFB0B0B8),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    Column(
+                        Modifier
+                            .padding(top = 20.dp)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CwOptionRow(
+                            icon = Icons.Default.Search,
+                            label = "Go to Details",
+                            modifier = Modifier.focusRequester(firstFocus),
+                            onClick = { onDismiss(); onViewDetails() }
+                        )
+                        CwOptionRow(
+                            icon = Icons.Default.Movie,
+                            label = "Start from Beginning",
+                            onClick = { onDismiss(); onStartFromBeginning() }
+                        )
+                        CwOptionRow(
+                            icon = Icons.Default.BookmarkBorder,
+                            label = "Remove",
+                            onClick = { onDismiss(); onRemove() }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CwOptionRow(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.tv.material3.Surface(
+        onClick = onClick,
+        shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
+        colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+            containerColor = Color(0xFF26262E),
+            focusedContainerColor = Color.White,
+            contentColor = Color.White,
+            focusedContentColor = Color.Black
+        ),
+        scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+        border = androidx.tv.material3.ClickableSurfaceDefaults.border(
+            focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = RoundedCornerShape(10.dp))
+        ),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 14.dp)
+            )
+        }
     }
 }
