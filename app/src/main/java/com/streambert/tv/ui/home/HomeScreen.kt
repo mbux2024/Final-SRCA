@@ -251,26 +251,9 @@ private fun HomeContent(
                         .height(HERO_HEIGHT)
                 )
 
-                // ── Gradient scrim at the boundary ───────────────────────────
-                // Blends the fixed info block into the rows area so there's no
-                // visible hard edge — just a natural part of the backdrop shading.
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(20.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.35f),
-                                    Color.Black.copy(alpha = 0.15f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-
                 // ── SCROLLABLE: LazyColumn (only rows scroll) ────────────────
                 // Transparent background — backdrop shows through everywhere.
+                // No boundary gradient — backdrop flows seamlessly from hero to rows.
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
