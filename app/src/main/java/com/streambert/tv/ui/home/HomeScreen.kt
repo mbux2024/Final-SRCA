@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -82,7 +83,7 @@ import androidx.tv.material3.Text
 // ─────────────────────────────────────────────────────────────────────────────
 // HERO_HEIGHT — only constrains the hero info block content, NOT the backdrop.
 // ─────────────────────────────────────────────────────────────────────────────
-private val HERO_HEIGHT = 220.dp
+private val HERO_HEIGHT = 250.dp
 
 @Composable
 fun HomeScreen(
@@ -173,6 +174,18 @@ private fun HomeContent(
     // "focusedItem" is set when a row poster gains focus; null when idle.
     var focusedItem by remember { mutableStateOf<CatalogItem?>(null) }
 
+    // Track which row has focus — used to scroll the list so previous row hides
+    var focusedRowIndex by remember { mutableStateOf(-1) }
+
+    // LazyColumn scroll state — scroll to focused row when it changes
+    val listState = rememberLazyListState()
+    LaunchedEffect(focusedRowIndex) {
+        if (focusedRowIndex > 0) {
+            // Scroll so the focused row is near the top — previous row hides above
+            listState.animateScrollToItem(focusedRowIndex)
+        }
+    }
+
     // Pool of featured titles for auto-rotation (distinct, with backdrops).
     val featuredPool = remember(rows) {
         rows.flatMap { it.items }
@@ -254,7 +267,10 @@ private fun HomeContent(
                 // ── SCROLLABLE: LazyColumn (only rows scroll) ────────────────
                 // Transparent background — backdrop shows through everywhere.
                 // No boundary gradient — backdrop flows seamlessly from hero to rows.
+                // When focus moves to a row, scroll so that row is at the top —
+                // previous row scrolls up and hides behind the hero area.
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Transparent),
@@ -335,13 +351,18 @@ private fun HomeContent(
                     }
 
                     // ── Catalog rows (tab-specific) ──────────────────────────
-                    itemsIndexed(rows, key = { _, it -> "${currentTab.name}_${it.title}" }) { _, row ->
+                    // The index offset accounts for fixed items above (genres, services, etc.)
+                    val fixedItemCount = listState.layoutInfo.totalItemsCount - rows.size
+                    itemsIndexed(rows, key = { _, it -> "${currentTab.name}_${it.title}" }) { index, row ->
                         if (row.ranked) {
                             Top10Row(
                                 title = row.title,
                                 items = row.items,
                                 onSelect = onSelect,
-                                onFocus = { focusedItem = it },
+                                onFocus = {
+                                    focusedItem = it
+                                    focusedRowIndex = index + fixedItemCount
+                                },
                                 onLongPress = { optionsItem = it },
                                 firstItemFocusRequester = null
                             )
@@ -350,7 +371,10 @@ private fun HomeContent(
                                 title = row.title,
                                 items = row.items,
                                 onSelect = onSelect,
-                                onFocus = { focusedItem = it },
+                                onFocus = {
+                                    focusedItem = it
+                                    focusedRowIndex = index + fixedItemCount
+                                },
                                 onLongPress = { optionsItem = it },
                                 firstItemFocusRequester = null
                             )
@@ -506,7 +530,7 @@ private fun HeroInfoBlock(
                     it,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFDDDDDD),
-                    maxLines = 3,
+                    maxLines = 5,
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 18.sp
                 )
