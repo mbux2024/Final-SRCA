@@ -171,22 +171,55 @@ private fun HomeContent(
     }
 
     // ── Focus-driven backdrop state ──────────────────────────────────────────
-    // "focusedItem" is set when a row poster gains focus; null when idle.
     var focusedItem by remember { mutableStateOf<CatalogItem?>(null) }
 
-    // Track which row has focus — used to scroll the list so previous row hides.
-    // lastSnappedIndex prevents re-scrolling when horizontal focus within the
-    // same row triggers onFocus again with the same index.
+    // Track which LazyColumn item has focus for scroll snap.
     var focusedRowIndex by remember { mutableStateOf(-1) }
     var lastSnappedIndex by remember { mutableStateOf(-1) }
 
-    // LazyColumn scroll state — snap focused row to top of scrollable area.
-    // ONLY fires when the row index actually CHANGES (not on horizontal moves
-    // within the same row).
     val listState = rememberLazyListState()
     LaunchedEffect(focusedRowIndex) {
         if (focusedRowIndex >= 0) {
             listState.scrollToItem(index = focusedRowIndex, scrollOffset = 0)
+        }
+    }
+
+    // ── Build a single flat list of ALL sections ─────────────────────────────
+    // Every section is an entry with a stable key. The LazyColumn renders them
+    // via itemsIndexed so the index used for scroll-snap is always correct —
+    // no counter drift from conditional items.
+    val sections = remember(currentTab, rows, state.continueWatching, state.traktWatchlist, state.recommendedRows) {
+        buildList {
+            // Genre chips
+            if (currentTab != HomeTab.MY_LIST) {
+                add("genres_${currentTab.name}")
+            }
+            // Services
+            if (currentTab == HomeTab.HOME) {
+                add("services")
+            }
+            // Continue Watching
+            if (currentTab == HomeTab.HOME && state.continueWatching.isNotEmpty()) {
+                add("continue_watching")
+            }
+            // Trakt watchlist
+            if (currentTab == HomeTab.HOME && state.traktWatchlist.isNotEmpty()) {
+                add("trakt_watchlist")
+            }
+            // Recommendation rows
+            if (currentTab == HomeTab.HOME) {
+                state.recommendedRows.forEach { row ->
+                    add("rec_${row.title}")
+                }
+            }
+            // Catalog rows
+            rows.forEach { row ->
+                add("${currentTab.name}_${row.title}")
+            }
+            // Empty state
+            if (currentTab == HomeTab.MY_LIST && state.myList.isEmpty() && state.traktWatchlist.isEmpty()) {
+                add("my_list_empty")
+            }
         }
     }
 
@@ -282,148 +315,98 @@ private fun HomeContent(
                         .fillMaxSize()
                         .background(Color.Transparent),
                     contentPadding = PaddingValues(bottom = 48.dp),
-                    // Disable user/focus-driven scroll — only our programmatic
-                    // scrollToItem controls position. This prevents Compose's
-                    // default BringIntoView from fighting with our snap-to-top.
                     userScrollEnabled = false
                 ) {
-                    // Track absolute item indices for scroll-to-top behavior.
-                    // Each row that gains focus sets focusedRowIndex to its index,
-                    // triggering animateScrollToItem which snaps it to the top.
-                    var nextIdx = 0
-
-                    // ── Genre chips ──────────────────────────────────────────
-                    if (currentTab != HomeTab.MY_LIST) {
-                        val idx = nextIdx; nextIdx++
-                        item(key = "genres_${currentTab.name}") {
-                            val genreMedia = when (currentTab) {
-                                HomeTab.MOVIES -> "movie"
-                                HomeTab.SHOWS -> "tv"
-                                else -> "all"
+                    // Single unified loop — every section gets the same snap wrapper.
+                    // The index from itemsIndexed IS the real LazyColumn item index.
+                    itemsIndexed(sections, key = { _, key -> key }) { index, sectionKey ->
+                        Box(Modifier.onFocusChanged { focusState ->
+                            if (focusState.hasFocus && index != lastSnappedIndex) {
+                                lastSnappedIndex = index
+                                focusedRowIndex = index
                             }
-                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
-                                GenreChipsRow(
-                                    onOpenGenre = { onOpenGenre(it, genreMedia) },
-                                    firstItemFocusRequester = firstCardFocus
-                                )
-                            }
-                        }
-                    }
-
-                    // ── Services (Home tab only) ─────────────────────────────
-                    if (currentTab == HomeTab.HOME) {
-                        val idx = nextIdx; nextIdx++
-                        item(key = "services") {
-                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
-                                ServicesRow(onOpenService = onOpenService)
-                            }
-                        }
-                    }
-
-                    // ── Continue Watching (Home tab only) ────────────────────
-                    if (currentTab == HomeTab.HOME && state.continueWatching.isNotEmpty()) {
-                        val idx = nextIdx; nextIdx++
-                        item(key = "continue_watching") {
-                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
-                                ContinueWatchingRow(
-                                    entries = state.continueWatching,
-                                    onResume = onResume,
-                                    onFocus = { p ->
-                                        focusedItem = CatalogItem(
-                                            id = p.tmdbId, type = p.mediaType, title = p.title,
-                                            overview = null, posterUrl = p.posterUrl,
-                                            backdropUrl = p.backdropUrl, rating = 0.0, year = null
-                                        )
-                                    },
-                                    onLongPress = { p ->
-                                        cwOptionsEntry = p
+                        }) {
+                            when (sectionKey) {
+                                "genres_${currentTab.name}" -> {
+                                    val genreMedia = when (currentTab) {
+                                        HomeTab.MOVIES -> "movie"
+                                        HomeTab.SHOWS -> "tv"
+                                        else -> "all"
                                     }
-                                )
-                            }
-                        }
-                    }
-
-                    // ── Trakt watchlist (Home tab only) ──────────────────────
-                    if (currentTab == HomeTab.HOME && state.traktWatchlist.isNotEmpty()) {
-                        val idx = nextIdx; nextIdx++
-                        item(key = "trakt_watchlist") {
-                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
-                                StandardRow(
-                                    title = "Your Trakt Watchlist",
-                                    items = state.traktWatchlist,
-                                    onSelect = onSelect,
-                                    onFocus = { focusedItem = it },
-                                    onLongPress = { optionsItem = it },
-                                    firstItemFocusRequester = null
-                                )
-                            }
-                        }
-                    }
-
-                    // ── Personalized recommendation rows (Home tab only) ─────
-                    if (currentTab == HomeTab.HOME) {
-                        val recStartIdx = nextIdx
-                        state.recommendedRows.forEachIndexed { recIdx, row ->
-                            val idx = recStartIdx + recIdx; nextIdx++
-                            item(key = "rec_${row.title}") {
-                                Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
+                                    GenreChipsRow(
+                                        onOpenGenre = { onOpenGenre(it, genreMedia) },
+                                        firstItemFocusRequester = if (index == 0) firstCardFocus else null
+                                    )
+                                }
+                                "services" -> {
+                                    ServicesRow(onOpenService = onOpenService)
+                                }
+                                "continue_watching" -> {
+                                    ContinueWatchingRow(
+                                        entries = state.continueWatching,
+                                        onResume = onResume,
+                                        onFocus = { p ->
+                                            focusedItem = CatalogItem(
+                                                id = p.tmdbId, type = p.mediaType, title = p.title,
+                                                overview = null, posterUrl = p.posterUrl,
+                                                backdropUrl = p.backdropUrl, rating = 0.0, year = null
+                                            )
+                                        },
+                                        onLongPress = { p -> cwOptionsEntry = p }
+                                    )
+                                }
+                                "trakt_watchlist" -> {
                                     StandardRow(
-                                        title = row.title,
-                                        items = row.items,
+                                        title = "Your Trakt Watchlist",
+                                        items = state.traktWatchlist,
                                         onSelect = onSelect,
                                         onFocus = { focusedItem = it },
                                         onLongPress = { optionsItem = it },
                                         firstItemFocusRequester = null
                                     )
                                 }
-                            }
-                        }
-                    }
-
-                    // ── Catalog rows (tab-specific) ──────────────────────────
-                    val catalogStartIdx = nextIdx
-                    rows.forEachIndexed { index, row ->
-                        val idx = catalogStartIdx + index
-                        item(key = "${currentTab.name}_${row.title}") {
-                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
-                                if (row.ranked) {
-                                    Top10Row(
-                                        title = row.title,
-                                        items = row.items,
-                                        onSelect = onSelect,
-                                        onFocus = { focusedItem = it },
-                                        onLongPress = { optionsItem = it },
-                                        firstItemFocusRequester = null
-                                    )
-                                } else {
-                                    StandardRow(
-                                        title = row.title,
-                                        items = row.items,
-                                        onSelect = onSelect,
-                                        onFocus = { focusedItem = it },
-                                        onLongPress = { optionsItem = it },
-                                        firstItemFocusRequester = null
-                                    )
+                                "my_list_empty" -> {
+                                    Box(
+                                        Modifier.fillMaxWidth().height(200.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "Your list is empty.\nOpen a title and choose \u201cMy List\u201d to add it.",
+                                            color = Color(0xFFB5B5BE),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
-                            }
-                        }
-                    }
-
-                    // ── Empty state for My List ──────────────────────────────
-                    if (currentTab == HomeTab.MY_LIST && state.myList.isEmpty() && state.traktWatchlist.isEmpty()) {
-                        item(key = "my_list_empty") {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    "Your list is empty.\nOpen a title and choose \u201cMy List\u201d to add it.",
-                                    color = Color(0xFFB5B5BE),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                else -> {
+                                    // Recommendation rows or catalog rows — find the matching row data
+                                    val matchedRow = if (sectionKey.startsWith("rec_")) {
+                                        state.recommendedRows.find { "rec_${it.title}" == sectionKey }
+                                    } else {
+                                        rows.find { "${currentTab.name}_${it.title}" == sectionKey }
+                                    }
+                                    matchedRow?.let { row ->
+                                        if (row.ranked) {
+                                            Top10Row(
+                                                title = row.title,
+                                                items = row.items,
+                                                onSelect = onSelect,
+                                                onFocus = { focusedItem = it },
+                                                onLongPress = { optionsItem = it },
+                                                firstItemFocusRequester = null
+                                            )
+                                        } else {
+                                            StandardRow(
+                                                title = row.title,
+                                                items = row.items,
+                                                onSelect = onSelect,
+                                                onFocus = { focusedItem = it },
+                                                onLongPress = { optionsItem = it },
+                                                firstItemFocusRequester = null
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
