@@ -324,24 +324,22 @@ private fun HomeContent(
                     if (currentTab == HomeTab.HOME && state.continueWatching.isNotEmpty()) {
                         val idx = nextIdx; nextIdx++
                         item(key = "continue_watching") {
-                            ContinueWatchingRow(
-                                entries = state.continueWatching,
-                                onResume = onResume,
-                                onFocus = { p ->
-                                    focusedItem = CatalogItem(
-                                        id = p.tmdbId, type = p.mediaType, title = p.title,
-                                        overview = null, posterUrl = p.posterUrl,
-                                        backdropUrl = p.backdropUrl, rating = 0.0, year = null
-                                    )
-                                    if (idx != lastSnappedIndex) {
-                                        lastSnappedIndex = idx
-                                        focusedRowIndex = idx
+                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
+                                ContinueWatchingRow(
+                                    entries = state.continueWatching,
+                                    onResume = onResume,
+                                    onFocus = { p ->
+                                        focusedItem = CatalogItem(
+                                            id = p.tmdbId, type = p.mediaType, title = p.title,
+                                            overview = null, posterUrl = p.posterUrl,
+                                            backdropUrl = p.backdropUrl, rating = 0.0, year = null
+                                        )
+                                    },
+                                    onLongPress = { p ->
+                                        cwOptionsEntry = p
                                     }
-                                },
-                                onLongPress = { p ->
-                                    cwOptionsEntry = p
-                                }
-                            )
+                                )
+                            }
                         }
                     }
 
@@ -349,17 +347,16 @@ private fun HomeContent(
                     if (currentTab == HomeTab.HOME && state.traktWatchlist.isNotEmpty()) {
                         val idx = nextIdx; nextIdx++
                         item(key = "trakt_watchlist") {
-                            StandardRow(
-                                title = "Your Trakt Watchlist",
-                                items = state.traktWatchlist,
-                                onSelect = onSelect,
-                                onFocus = {
-                                    focusedItem = it
-                                    if (idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx }
-                                },
-                                onLongPress = { optionsItem = it },
-                                firstItemFocusRequester = null
-                            )
+                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
+                                StandardRow(
+                                    title = "Your Trakt Watchlist",
+                                    items = state.traktWatchlist,
+                                    onSelect = onSelect,
+                                    onFocus = { focusedItem = it },
+                                    onLongPress = { optionsItem = it },
+                                    firstItemFocusRequester = null
+                                )
+                            }
                         }
                     }
 
@@ -369,17 +366,16 @@ private fun HomeContent(
                         state.recommendedRows.forEachIndexed { recIdx, row ->
                             val idx = recStartIdx + recIdx; nextIdx++
                             item(key = "rec_${row.title}") {
-                                StandardRow(
-                                    title = row.title,
-                                    items = row.items,
-                                    onSelect = onSelect,
-                                    onFocus = {
-                                        focusedItem = it
-                                        if (idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx }
-                                    },
-                                    onLongPress = { optionsItem = it },
-                                    firstItemFocusRequester = null
-                                )
+                                Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
+                                    StandardRow(
+                                        title = row.title,
+                                        items = row.items,
+                                        onSelect = onSelect,
+                                        onFocus = { focusedItem = it },
+                                        onLongPress = { optionsItem = it },
+                                        firstItemFocusRequester = null
+                                    )
+                                }
                             }
                         }
                     }
@@ -389,30 +385,26 @@ private fun HomeContent(
                     rows.forEachIndexed { index, row ->
                         val idx = catalogStartIdx + index
                         item(key = "${currentTab.name}_${row.title}") {
-                            if (row.ranked) {
-                                Top10Row(
-                                    title = row.title,
-                                    items = row.items,
-                                    onSelect = onSelect,
-                                    onFocus = {
-                                        focusedItem = it
-                                        if (idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx }
-                                    },
-                                    onLongPress = { optionsItem = it },
-                                    firstItemFocusRequester = null
-                                )
-                            } else {
-                                StandardRow(
-                                    title = row.title,
-                                    items = row.items,
-                                    onSelect = onSelect,
-                                    onFocus = {
-                                        focusedItem = it
-                                        if (idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx }
-                                    },
-                                    onLongPress = { optionsItem = it },
-                                    firstItemFocusRequester = null
-                                )
+                            Box(Modifier.onFocusChanged { if (it.hasFocus && idx != lastSnappedIndex) { lastSnappedIndex = idx; focusedRowIndex = idx } }) {
+                                if (row.ranked) {
+                                    Top10Row(
+                                        title = row.title,
+                                        items = row.items,
+                                        onSelect = onSelect,
+                                        onFocus = { focusedItem = it },
+                                        onLongPress = { optionsItem = it },
+                                        firstItemFocusRequester = null
+                                    )
+                                } else {
+                                    StandardRow(
+                                        title = row.title,
+                                        items = row.items,
+                                        onSelect = onSelect,
+                                        onFocus = { focusedItem = it },
+                                        onLongPress = { optionsItem = it },
+                                        firstItemFocusRequester = null
+                                    )
+                                }
                             }
                         }
                     }
