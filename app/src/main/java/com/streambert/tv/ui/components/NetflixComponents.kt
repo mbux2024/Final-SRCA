@@ -22,11 +22,13 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -172,7 +174,7 @@ fun Top10Row(
     if (items.isEmpty()) return
     Column(modifier.padding(vertical = 12.dp)) {
         RowTitle(title)
-        MediaLazyRow(startPadding = ROW_PADDING, itemSpacing = 4.dp) {
+        MediaLazyRow(startPadding = ROW_PADDING, itemSpacing = 8.dp) {
             itemsIndexed(items, key = { _, it -> "${it.type}_${it.id}" }) { index, item ->
                 Top10Card(
                     rank = index + 1,
@@ -196,34 +198,50 @@ private fun Top10Card(
     onLongPress: (() -> Unit)? = null,
     focusRequester: FocusRequester? = null
 ) {
-    Row(verticalAlignment = Alignment.Bottom) {
-        // Big rank numeral, Netflix-style.
-        Text(
-            text = rank.toString(),
-            fontSize = 88.sp,
-            fontWeight = FontWeight.Black,
-            color = Color(0xFF2A2A33),
-            modifier = Modifier.padding(end = 4.dp)
-        )
-        Card(
-            onClick = onClick,
-            scale = CardDefaults.scale(focusedScale = 1.3f),
-            border = CardDefaults.border(
-                focusedBorder = Border(BorderStroke(3.dp, MaterialTheme.colorScheme.primary))
-            ),
-            modifier = Modifier
-                .width(92.dp)
-                .aspectRatio(2f / 3f)
-                .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
-                .cardLongPress(onLongPress)
-                .onFocusChanged { if (it.isFocused) onFocus() }
-        ) {
-            AsyncImage(
-                model = item.posterUrl ?: item.backdropUrl,
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+    // Fixed height box that clips children — rank number cannot escape.
+    // Poster is 92dp wide × 138dp tall (2:3). Row height matches poster.
+    val posterHeight = 138.dp
+    Box(
+        modifier = Modifier
+            .height(posterHeight)
+            .clip(RectangleShape),
+        contentAlignment = Alignment.BottomStart
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            // Big rank numeral — constrained to poster height, clipped.
+            Box(
+                modifier = Modifier
+                    .height(posterHeight)
+                    .width(48.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Text(
+                    text = rank.toString(),
+                    fontSize = 72.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF2A2A33)
+                )
+            }
+            Card(
+                onClick = onClick,
+                scale = CardDefaults.scale(focusedScale = 1.1f),
+                border = CardDefaults.border(
+                    focusedBorder = Border(BorderStroke(3.dp, MaterialTheme.colorScheme.primary))
+                ),
+                modifier = Modifier
+                    .width(92.dp)
+                    .height(posterHeight)
+                    .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                    .cardLongPress(onLongPress)
+                    .onFocusChanged { if (it.isFocused) onFocus() }
+            ) {
+                AsyncImage(
+                    model = item.posterUrl ?: item.backdropUrl,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }
