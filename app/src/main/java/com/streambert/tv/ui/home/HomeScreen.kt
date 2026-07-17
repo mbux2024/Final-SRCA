@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -230,16 +231,16 @@ private fun HomeContent(
                 .fillMaxHeight()
         )
 
-        // LAYER 4 — Scrollable content (z-index 3)
-        // Transparent LazyColumn — backdrop shows through everywhere.
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 56.dp), // offset past the nav rail
-            contentPadding = PaddingValues(bottom = 48.dp)
-        ) {
-            // ── Hero info block (first item, uses HERO_HEIGHT) ────────────────
-            item(key = "hero_info") {
+        // LAYER 4 — Content: FIXED hero info + SCROLLABLE rows
+        // These are in a Column so the info block stays anchored and only
+        // the LazyColumn below it scrolls. The backdrop stays full-bleed
+        // behind both regions.
+        Row(Modifier.fillMaxSize()) {
+            // Space for nav rail
+            Spacer(Modifier.width(56.dp))
+
+            Column(Modifier.fillMaxSize()) {
+                // ── FIXED: Hero info block (never scrolls) ───────────────────
                 HeroInfoBlock(
                     item = currentFeaturedItem,
                     extra = currentFeaturedItem?.let {
@@ -249,120 +250,147 @@ private fun HomeContent(
                         .fillMaxWidth()
                         .height(HERO_HEIGHT)
                 )
-            }
 
-            // ── Genre chips ──────────────────────────────────────────────────
-            if (currentTab != HomeTab.MY_LIST) {
-                item(key = "genres_${currentTab.name}") {
-                    val genreMedia = when (currentTab) {
-                        HomeTab.MOVIES -> "movie"
-                        HomeTab.SHOWS -> "tv"
-                        else -> "all"
-                    }
-                    GenreChipsRow(
-                        onOpenGenre = { onOpenGenre(it, genreMedia) },
-                        firstItemFocusRequester = firstCardFocus
-                    )
-                }
-            }
-
-            // ── Services (Home tab only) ─────────────────────────────────────
-            if (currentTab == HomeTab.HOME) {
-                item(key = "services") {
-                    ServicesRow(onOpenService = onOpenService)
-                }
-            }
-
-            // ── Continue Watching (Home tab only) ────────────────────────────
-            if (currentTab == HomeTab.HOME && state.continueWatching.isNotEmpty()) {
-                item(key = "continue_watching") {
-                    ContinueWatchingRow(
-                        entries = state.continueWatching,
-                        onResume = onResume,
-                        onFocus = { p ->
-                            focusedItem = CatalogItem(
-                                id = p.tmdbId, type = p.mediaType, title = p.title,
-                                overview = null, posterUrl = p.posterUrl,
-                                backdropUrl = p.backdropUrl, rating = 0.0, year = null
+                // ── Gradient scrim at the boundary ───────────────────────────
+                // Blends the fixed info block into the rows area so there's no
+                // visible hard edge — just a natural part of the backdrop shading.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.45f),
+                                    Color.Black.copy(alpha = 0.20f),
+                                    Color.Transparent
+                                )
                             )
-                        },
-                        onLongPress = { p ->
-                            optionsItem = CatalogItem(
-                                id = p.tmdbId, type = p.mediaType, title = p.title,
-                                overview = null, posterUrl = p.posterUrl,
-                                backdropUrl = p.backdropUrl, rating = 0.0, year = null
+                        )
+                )
+
+                // ── SCROLLABLE: LazyColumn (only rows scroll) ────────────────
+                // Transparent background — backdrop shows through everywhere.
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Transparent),
+                    contentPadding = PaddingValues(bottom = 48.dp)
+                ) {
+                    // ── Genre chips ──────────────────────────────────────────
+                    if (currentTab != HomeTab.MY_LIST) {
+                        item(key = "genres_${currentTab.name}") {
+                            val genreMedia = when (currentTab) {
+                                HomeTab.MOVIES -> "movie"
+                                HomeTab.SHOWS -> "tv"
+                                else -> "all"
+                            }
+                            GenreChipsRow(
+                                onOpenGenre = { onOpenGenre(it, genreMedia) },
+                                firstItemFocusRequester = firstCardFocus
                             )
                         }
-                    )
-                }
-            }
+                    }
 
-            // ── Trakt watchlist (Home tab only, when not in My List tab) ─────
-            if (currentTab == HomeTab.HOME && state.traktWatchlist.isNotEmpty()) {
-                item(key = "trakt_watchlist") {
-                    StandardRow(
-                        title = "Your Trakt Watchlist",
-                        items = state.traktWatchlist,
-                        onSelect = onSelect,
-                        onFocus = { focusedItem = it },
-                        onLongPress = { optionsItem = it },
-                        firstItemFocusRequester = null
-                    )
-                }
-            }
+                    // ── Services (Home tab only) ─────────────────────────────
+                    if (currentTab == HomeTab.HOME) {
+                        item(key = "services") {
+                            ServicesRow(onOpenService = onOpenService)
+                        }
+                    }
 
-            // ── Personalized recommendation rows (Home tab only) ─────────────
-            if (currentTab == HomeTab.HOME) {
-                items(state.recommendedRows, key = { "rec_${it.title}" }) { row ->
-                    StandardRow(
-                        title = row.title,
-                        items = row.items,
-                        onSelect = onSelect,
-                        onFocus = { focusedItem = it },
-                        onLongPress = { optionsItem = it },
-                        firstItemFocusRequester = null
-                    )
-                }
-            }
+                    // ── Continue Watching (Home tab only) ────────────────────
+                    if (currentTab == HomeTab.HOME && state.continueWatching.isNotEmpty()) {
+                        item(key = "continue_watching") {
+                            ContinueWatchingRow(
+                                entries = state.continueWatching,
+                                onResume = onResume,
+                                onFocus = { p ->
+                                    focusedItem = CatalogItem(
+                                        id = p.tmdbId, type = p.mediaType, title = p.title,
+                                        overview = null, posterUrl = p.posterUrl,
+                                        backdropUrl = p.backdropUrl, rating = 0.0, year = null
+                                    )
+                                },
+                                onLongPress = { p ->
+                                    optionsItem = CatalogItem(
+                                        id = p.tmdbId, type = p.mediaType, title = p.title,
+                                        overview = null, posterUrl = p.posterUrl,
+                                        backdropUrl = p.backdropUrl, rating = 0.0, year = null
+                                    )
+                                }
+                            )
+                        }
+                    }
 
-            // ── Catalog rows (tab-specific) ──────────────────────────────────
-            itemsIndexed(rows, key = { _, it -> "${currentTab.name}_${it.title}" }) { _, row ->
-                if (row.ranked) {
-                    Top10Row(
-                        title = row.title,
-                        items = row.items,
-                        onSelect = onSelect,
-                        onFocus = { focusedItem = it },
-                        onLongPress = { optionsItem = it },
-                        firstItemFocusRequester = null
-                    )
-                } else {
-                    StandardRow(
-                        title = row.title,
-                        items = row.items,
-                        onSelect = onSelect,
-                        onFocus = { focusedItem = it },
-                        onLongPress = { optionsItem = it },
-                        firstItemFocusRequester = null
-                    )
-                }
-            }
+                    // ── Trakt watchlist (Home tab only) ──────────────────────
+                    if (currentTab == HomeTab.HOME && state.traktWatchlist.isNotEmpty()) {
+                        item(key = "trakt_watchlist") {
+                            StandardRow(
+                                title = "Your Trakt Watchlist",
+                                items = state.traktWatchlist,
+                                onSelect = onSelect,
+                                onFocus = { focusedItem = it },
+                                onLongPress = { optionsItem = it },
+                                firstItemFocusRequester = null
+                            )
+                        }
+                    }
 
-            // ── Empty state for My List ──────────────────────────────────────
-            if (currentTab == HomeTab.MY_LIST && state.myList.isEmpty() && state.traktWatchlist.isEmpty()) {
-                item(key = "my_list_empty") {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "Your list is empty.\nOpen a title and choose \u201cMy List\u201d to add it.",
-                            color = Color(0xFFB5B5BE),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
-                        )
+                    // ── Personalized recommendation rows (Home tab only) ─────
+                    if (currentTab == HomeTab.HOME) {
+                        items(state.recommendedRows, key = { "rec_${it.title}" }) { row ->
+                            StandardRow(
+                                title = row.title,
+                                items = row.items,
+                                onSelect = onSelect,
+                                onFocus = { focusedItem = it },
+                                onLongPress = { optionsItem = it },
+                                firstItemFocusRequester = null
+                            )
+                        }
+                    }
+
+                    // ── Catalog rows (tab-specific) ──────────────────────────
+                    itemsIndexed(rows, key = { _, it -> "${currentTab.name}_${it.title}" }) { _, row ->
+                        if (row.ranked) {
+                            Top10Row(
+                                title = row.title,
+                                items = row.items,
+                                onSelect = onSelect,
+                                onFocus = { focusedItem = it },
+                                onLongPress = { optionsItem = it },
+                                firstItemFocusRequester = null
+                            )
+                        } else {
+                            StandardRow(
+                                title = row.title,
+                                items = row.items,
+                                onSelect = onSelect,
+                                onFocus = { focusedItem = it },
+                                onLongPress = { optionsItem = it },
+                                firstItemFocusRequester = null
+                            )
+                        }
+                    }
+
+                    // ── Empty state for My List ──────────────────────────────
+                    if (currentTab == HomeTab.MY_LIST && state.myList.isEmpty() && state.traktWatchlist.isEmpty()) {
+                        item(key = "my_list_empty") {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "Your list is empty.\nOpen a title and choose \u201cMy List\u201d to add it.",
+                                    color = Color(0xFFB5B5BE),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 }
             }
