@@ -174,17 +174,23 @@ private fun HomeContent(
     // "focusedItem" is set when a row poster gains focus; null when idle.
     var focusedItem by remember { mutableStateOf<CatalogItem?>(null) }
 
-    // Track which row has focus — used to scroll the list so previous row hides
+    // Track which row has focus — used to scroll the list so previous row hides.
+    // lastSnappedIndex prevents re-scrolling when horizontal focus within the
+    // same row triggers onFocus again with the same index.
     var focusedRowIndex by remember { mutableStateOf(-1) }
+    var lastSnappedIndex by remember { mutableStateOf(-1) }
 
-    // LazyColumn scroll state — snap focused row to top of scrollable area
+    // LazyColumn scroll state — snap focused row to top of scrollable area.
+    // ONLY fires when the row index actually CHANGES (not on horizontal moves
+    // within the same row). This prevents Compose's default BringIntoView from
+    // conflicting with our manual scroll.
     val listState = rememberLazyListState()
     LaunchedEffect(focusedRowIndex) {
-        if (focusedRowIndex >= 0) {
-            // Scroll so the focused row aligns to the TOP of the viewport —
-            // this fully hides any rows above it (no partial/cut-off sliver).
-            // scrollOffset = 0 ensures top-edge alignment, not "just visible".
-            listState.animateScrollToItem(index = focusedRowIndex, scrollOffset = 0)
+        if (focusedRowIndex >= 0 && focusedRowIndex != lastSnappedIndex) {
+            lastSnappedIndex = focusedRowIndex
+            // Immediately scroll (not animate) to prevent conflict with
+            // Compose's BringIntoView which runs on the same frame.
+            listState.scrollToItem(index = focusedRowIndex, scrollOffset = 0)
         }
     }
 
@@ -276,7 +282,11 @@ private fun HomeContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Transparent),
-                    contentPadding = PaddingValues(bottom = 48.dp)
+                    contentPadding = PaddingValues(bottom = 48.dp),
+                    // Disable user/focus-driven scroll — only our programmatic
+                    // scrollToItem controls position. This prevents Compose's
+                    // default BringIntoView from fighting with our snap-to-top.
+                    userScrollEnabled = false
                 ) {
                     // Track absolute item indices for scroll-to-top behavior.
                     // Each row that gains focus sets focusedRowIndex to its index,
