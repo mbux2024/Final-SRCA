@@ -82,7 +82,7 @@ import androidx.tv.material3.Text
 // ─────────────────────────────────────────────────────────────────────────────
 // HERO_HEIGHT — only constrains the hero info block content, NOT the backdrop.
 // ─────────────────────────────────────────────────────────────────────────────
-private val HERO_HEIGHT = 340.dp
+private val HERO_HEIGHT = 220.dp
 
 @Composable
 fun HomeScreen(
@@ -257,12 +257,12 @@ private fun HomeContent(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .height(32.dp)
+                        .height(20.dp)
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = 0.45f),
-                                    Color.Black.copy(alpha = 0.20f),
+                                    Color.Black.copy(alpha = 0.35f),
+                                    Color.Black.copy(alpha = 0.15f),
                                     Color.Transparent
                                 )
                             )
@@ -434,9 +434,9 @@ private fun HeroInfoBlock(
     ) {
         Column(
             modifier = Modifier
-                .padding(start = 24.dp, end = 200.dp, bottom = 24.dp)
+                .padding(start = 24.dp, end = 200.dp, bottom = 8.dp)
                 .fillMaxWidth(0.55f),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // Type label
             Text(
