@@ -13,39 +13,39 @@ import androidx.compose.ui.graphics.Color
  *
  * Static, anchored to the screen, does NOT scroll.
  *
- * The hero/scrim zone extends down to cover the hero text AND the first
- * content row beneath it (genre chips + first poster row). A deliberate
- * sharp edge lands at ~65% of screen height — everything above is the
- * dark hero zone, everything below ("Top 10 Movies Today" onward) is the
- * normal ambient-dim row area.
+ * The hero/scrim zone extends down far enough to cover the hero text AND
+ * the first content row beneath it, dimming that row significantly. The
+ * gradient then gradually (no hard edge, no seam) fades to the lighter
+ * ambient level by the time "Top 10 Movies Today" begins.
  *
- * Vertical gradient:
- *   0-50%: dark/opaque hero zone (~80-85% black)
- *   50-62%: still covering first row beneath hero (~70-75% black)
- *   62-66%: SHARP drop (deliberate hard edge, ~4% span)
- *   66-100%: normal row area (~35% black, holds steady)
+ * Single continuous Brush.verticalGradient — many color stops for a
+ * smooth, imperceptible transition. No two-Box seam, no abrupt jump.
  *
  * Plus horizontal gradient for left-edge (nav rail) legibility.
  */
 @Composable
 fun ScrimOverlay(modifier: Modifier = Modifier) {
-    // Vertical gradient — dark hero zone extended to cover first row,
-    // sharp edge before the second visible row.
+    // Single continuous vertical gradient spanning full screen height.
+    // Gradual darkening covers the first row, then slowly lightens over
+    // ~20% of screen height to settle at the ambient row level.
+    // NO sharp edges anywhere.
     Box(
         modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0.00f to Color.Black.copy(alpha = 0.88f),  // top: hero title
-                        0.20f to Color.Black.copy(alpha = 0.85f),  // hero metadata
-                        0.40f to Color.Black.copy(alpha = 0.80f),  // hero description
-                        0.52f to Color.Black.copy(alpha = 0.75f),  // covering first row
-                        0.60f to Color.Black.copy(alpha = 0.70f),  // still covering first row
-                        0.63f to Color.Black.copy(alpha = 0.60f),  // sharp edge begins
-                        0.66f to Color.Black.copy(alpha = 0.35f),  // sharp edge ends (hard cut)
-                        0.70f to Color.Black.copy(alpha = 0.35f),  // row area (steady)
-                        1.00f to Color.Black.copy(alpha = 0.35f)   // holds to bottom
+                        0.00f to Color.Black.copy(alpha = 0.88f),  // hero title area
+                        0.12f to Color.Black.copy(alpha = 0.85f),  // hero metadata
+                        0.25f to Color.Black.copy(alpha = 0.82f),  // hero description
+                        0.38f to Color.Black.copy(alpha = 0.78f),  // below description
+                        0.48f to Color.Black.copy(alpha = 0.72f),  // first row - heavily dimmed
+                        0.55f to Color.Black.copy(alpha = 0.65f),  // first row - still dimmed
+                        0.62f to Color.Black.copy(alpha = 0.55f),  // gradual fade continuing
+                        0.68f to Color.Black.copy(alpha = 0.45f),  // approaching row area
+                        0.74f to Color.Black.copy(alpha = 0.38f),  // nearly at ambient level
+                        0.80f to Color.Black.copy(alpha = 0.35f),  // settled at row ambient
+                        1.00f to Color.Black.copy(alpha = 0.35f)   // holds steady to bottom
                     )
                 )
             )
