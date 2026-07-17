@@ -62,7 +62,7 @@ private fun HeroInfoContent(
     Column(
         modifier = Modifier
             .fillMaxWidth(0.55f)
-            .padding(start = 24.dp, top = 40.dp, end = 24.dp, bottom = 16.dp),
+            .padding(start = 24.dp, top = 40.dp, end = 24.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Type label (SERIES / FILM)

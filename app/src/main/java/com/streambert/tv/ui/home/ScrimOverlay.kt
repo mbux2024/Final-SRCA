@@ -13,45 +13,55 @@ import androidx.compose.ui.graphics.Color
  *
  * Static, anchored to the screen, does NOT scroll.
  *
- * A single continuous vertical gradient spanning the ENTIRE screen height
- * with a smooth, gradual transition from dark (hero text area) to the
- * steady dim level (row area). No hard edges or seams.
+ * The hero/scrim zone extends down to cover the hero text AND the first
+ * content row beneath it (genre chips + first poster row). A deliberate
+ * sharp edge lands at ~65% of screen height — everything above is the
+ * dark hero zone, everything below ("Top 10 Movies Today" onward) is the
+ * normal ambient-dim row area.
  *
- * Plus a horizontal gradient for left-edge (nav rail) legibility.
+ * Vertical gradient:
+ *   0-50%: dark/opaque hero zone (~80-85% black)
+ *   50-62%: still covering first row beneath hero (~70-75% black)
+ *   62-66%: SHARP drop (deliberate hard edge, ~4% span)
+ *   66-100%: normal row area (~35% black, holds steady)
+ *
+ * Plus horizontal gradient for left-edge (nav rail) legibility.
  */
 @Composable
 fun ScrimOverlay(modifier: Modifier = Modifier) {
-    // Single vertical gradient — ONE Box, full screen height, smooth transition.
-    // The transition between hero-text darkness and row-area darkness spans
-    // ~15-20% of the screen so it reads as a smooth fade, not a line.
+    // Vertical gradient — dark hero zone extended to cover first row,
+    // sharp edge before the second visible row.
     Box(
         modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0.00f to Color.Black.copy(alpha = 0.85f),  // behind hero title
-                        0.15f to Color.Black.copy(alpha = 0.80f),  // still in hero zone
-                        0.30f to Color.Black.copy(alpha = 0.55f),  // behind description
-                        0.42f to Color.Black.copy(alpha = 0.40f),  // transition zone (slow fade)
-                        0.55f to Color.Black.copy(alpha = 0.35f),  // settles here for rows
-                        1.00f to Color.Black.copy(alpha = 0.35f)   // holds steady to bottom
+                        0.00f to Color.Black.copy(alpha = 0.88f),  // top: hero title
+                        0.20f to Color.Black.copy(alpha = 0.85f),  // hero metadata
+                        0.40f to Color.Black.copy(alpha = 0.80f),  // hero description
+                        0.52f to Color.Black.copy(alpha = 0.75f),  // covering first row
+                        0.60f to Color.Black.copy(alpha = 0.70f),  // still covering first row
+                        0.63f to Color.Black.copy(alpha = 0.60f),  // sharp edge begins
+                        0.66f to Color.Black.copy(alpha = 0.35f),  // sharp edge ends (hard cut)
+                        0.70f to Color.Black.copy(alpha = 0.35f),  // row area (steady)
+                        1.00f to Color.Black.copy(alpha = 0.35f)   // holds to bottom
                     )
                 )
             )
     )
+
     // Horizontal gradient for left-edge legibility (nav rail + hero text).
-    // Separate axis — no vertical seam risk.
     Box(
         modifier
             .fillMaxSize()
             .background(
                 Brush.horizontalGradient(
                     colorStops = arrayOf(
-                        0.00f to Color.Black.copy(alpha = 0.70f),  // left edge (nav rail)
-                        0.10f to Color.Black.copy(alpha = 0.45f),  // behind hero text start
-                        0.30f to Color.Black.copy(alpha = 0.15f),  // fading
-                        0.50f to Color.Transparent                 // gone by mid-screen
+                        0.00f to Color.Black.copy(alpha = 0.70f),
+                        0.10f to Color.Black.copy(alpha = 0.45f),
+                        0.30f to Color.Black.copy(alpha = 0.15f),
+                        0.50f to Color.Transparent
                     )
                 )
             )
