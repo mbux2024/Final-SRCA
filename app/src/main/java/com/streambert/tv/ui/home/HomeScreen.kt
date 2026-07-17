@@ -177,12 +177,14 @@ private fun HomeContent(
     // Track which row has focus — used to scroll the list so previous row hides
     var focusedRowIndex by remember { mutableStateOf(-1) }
 
-    // LazyColumn scroll state — scroll to focused row when it changes
+    // LazyColumn scroll state — snap focused row to top of scrollable area
     val listState = rememberLazyListState()
     LaunchedEffect(focusedRowIndex) {
-        if (focusedRowIndex > 0) {
-            // Scroll so the focused row is near the top — previous row hides above
-            listState.animateScrollToItem(focusedRowIndex)
+        if (focusedRowIndex >= 0) {
+            // Scroll so the focused row aligns to the TOP of the viewport —
+            // this fully hides any rows above it (no partial/cut-off sliver).
+            // scrollOffset = 0 ensures top-edge alignment, not "just visible".
+            listState.animateScrollToItem(index = focusedRowIndex, scrollOffset = 0)
         }
     }
 
@@ -274,10 +276,16 @@ private fun HomeContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Transparent),
-                    contentPadding = PaddingValues(top = 80.dp, bottom = 48.dp)
+                    contentPadding = PaddingValues(bottom = 48.dp)
                 ) {
+                    // Track absolute item indices for scroll-to-top behavior.
+                    // Each row that gains focus sets focusedRowIndex to its index,
+                    // triggering animateScrollToItem which snaps it to the top.
+                    var nextIdx = 0
+
                     // ── Genre chips ──────────────────────────────────────────
                     if (currentTab != HomeTab.MY_LIST) {
+                        val idx = nextIdx; nextIdx++
                         item(key = "genres_${currentTab.name}") {
                             val genreMedia = when (currentTab) {
                                 HomeTab.MOVIES -> "movie"
@@ -293,6 +301,7 @@ private fun HomeContent(
 
                     // ── Services (Home tab only) ─────────────────────────────
                     if (currentTab == HomeTab.HOME) {
+                        val idx = nextIdx; nextIdx++
                         item(key = "services") {
                             ServicesRow(onOpenService = onOpenService)
                         }
@@ -300,6 +309,7 @@ private fun HomeContent(
 
                     // ── Continue Watching (Home tab only) ────────────────────
                     if (currentTab == HomeTab.HOME && state.continueWatching.isNotEmpty()) {
+                        val idx = nextIdx; nextIdx++
                         item(key = "continue_watching") {
                             ContinueWatchingRow(
                                 entries = state.continueWatching,
@@ -310,6 +320,7 @@ private fun HomeContent(
                                         overview = null, posterUrl = p.posterUrl,
                                         backdropUrl = p.backdropUrl, rating = 0.0, year = null
                                     )
+                                    focusedRowIndex = idx
                                 },
                                 onLongPress = { p ->
                                     optionsItem = CatalogItem(
@@ -324,12 +335,16 @@ private fun HomeContent(
 
                     // ── Trakt watchlist (Home tab only) ──────────────────────
                     if (currentTab == HomeTab.HOME && state.traktWatchlist.isNotEmpty()) {
+                        val idx = nextIdx; nextIdx++
                         item(key = "trakt_watchlist") {
                             StandardRow(
                                 title = "Your Trakt Watchlist",
                                 items = state.traktWatchlist,
                                 onSelect = onSelect,
-                                onFocus = { focusedItem = it },
+                                onFocus = {
+                                    focusedItem = it
+                                    focusedRowIndex = idx
+                                },
                                 onLongPress = { optionsItem = it },
                                 firstItemFocusRequester = null
                             )
@@ -338,46 +353,55 @@ private fun HomeContent(
 
                     // ── Personalized recommendation rows (Home tab only) ─────
                     if (currentTab == HomeTab.HOME) {
-                        items(state.recommendedRows, key = { "rec_${it.title}" }) { row ->
-                            StandardRow(
-                                title = row.title,
-                                items = row.items,
-                                onSelect = onSelect,
-                                onFocus = { focusedItem = it },
-                                onLongPress = { optionsItem = it },
-                                firstItemFocusRequester = null
-                            )
+                        val recStartIdx = nextIdx
+                        state.recommendedRows.forEachIndexed { recIdx, row ->
+                            val idx = recStartIdx + recIdx; nextIdx++
+                            item(key = "rec_${row.title}") {
+                                StandardRow(
+                                    title = row.title,
+                                    items = row.items,
+                                    onSelect = onSelect,
+                                    onFocus = {
+                                        focusedItem = it
+                                        focusedRowIndex = idx
+                                    },
+                                    onLongPress = { optionsItem = it },
+                                    firstItemFocusRequester = null
+                                )
+                            }
                         }
                     }
 
                     // ── Catalog rows (tab-specific) ──────────────────────────
-                    // The index offset accounts for fixed items above (genres, services, etc.)
-                    val fixedItemCount = listState.layoutInfo.totalItemsCount - rows.size
-                    itemsIndexed(rows, key = { _, it -> "${currentTab.name}_${it.title}" }) { index, row ->
-                        if (row.ranked) {
-                            Top10Row(
-                                title = row.title,
-                                items = row.items,
-                                onSelect = onSelect,
-                                onFocus = {
-                                    focusedItem = it
-                                    focusedRowIndex = index + fixedItemCount
-                                },
-                                onLongPress = { optionsItem = it },
-                                firstItemFocusRequester = null
-                            )
-                        } else {
-                            StandardRow(
-                                title = row.title,
-                                items = row.items,
-                                onSelect = onSelect,
-                                onFocus = {
-                                    focusedItem = it
-                                    focusedRowIndex = index + fixedItemCount
-                                },
-                                onLongPress = { optionsItem = it },
-                                firstItemFocusRequester = null
-                            )
+                    val catalogStartIdx = nextIdx
+                    rows.forEachIndexed { index, row ->
+                        val idx = catalogStartIdx + index
+                        item(key = "${currentTab.name}_${row.title}") {
+                            if (row.ranked) {
+                                Top10Row(
+                                    title = row.title,
+                                    items = row.items,
+                                    onSelect = onSelect,
+                                    onFocus = {
+                                        focusedItem = it
+                                        focusedRowIndex = idx
+                                    },
+                                    onLongPress = { optionsItem = it },
+                                    firstItemFocusRequester = null
+                                )
+                            } else {
+                                StandardRow(
+                                    title = row.title,
+                                    items = row.items,
+                                    onSelect = onSelect,
+                                    onFocus = {
+                                        focusedItem = it
+                                        focusedRowIndex = idx
+                                    },
+                                    onLongPress = { optionsItem = it },
+                                    firstItemFocusRequester = null
+                                )
+                            }
                         }
                     }
 
