@@ -34,15 +34,22 @@ class StreamRepository(
                 "No debrid configured. Add your TorBox and/or Real-Debrid key in Settings."
             )
         }
-        onProgress("Finding an instant source…")
-        val best = runCatching { buildOptions(imdbId, season, episode) }.getOrNull()?.firstOrNull()
-            ?: return StreamResolution.Failure(
+        onProgress("Finding best source…")
+        val options = runCatching { buildOptions(imdbId, season, episode) }.getOrNull()
+        if (options.isNullOrEmpty()) {
+            return StreamResolution.Failure(
                 "No cached sources found yet. Try another title/quality or play again shortly."
             )
+        }
+        // Auto-pick: the list is already sorted by score (4K cap + 5.1 preference
+        // + cached-first). Take the first valid option that has a URL or hash.
+        val best = options.firstOrNull { it.quality <= 2160 } ?: options.firstOrNull()
+            ?: return StreamResolution.Failure("No compatible source found within quality limits.")
+
         // Direct (debrid) sources already have a URL; scraper sources resolve now.
         best.url?.let { return StreamResolution.Ready(it, best.label) }
         best.hash?.let {
-            onProgress("Preparing instant debrid stream…")
+            onProgress("Preparing instant stream…")
             return resolveViaDebrid(it, best.label, season, episode, best.debrid)
         }
         return StreamResolution.Failure("Selected source has no URL or hash.")
@@ -199,24 +206,45 @@ class StreamRepository(
     }
 
     /**
-     * Ranking for auto-picking the fastest, most playable source. Priority
-     * (each tier dominates the next):
-     *   1. Cached/instant on debrid (streams immediately, no download wait).
-     *   2. Closest to the user's preferred quality (1080p or 4K, per Settings).
-     *   3. Most seeders (fastest for the debrid to serve / least likely to stall).
+     * Ranking for auto-picking the best playable source for autoplay. Priority:
+     *   1. HARD CONSTRAINTS: must be ≤4K video, prefer ≤5.1 audio.
+     *      Sources exceeding 4K are excluded entirely. Sources with >5.1 audio
+     *      (Atmos, TrueHD, DTS:X, 7.1) are penalized but not excluded (may be
+     *      the only option available).
+     *   2. Cached/instant on debrid (streams immediately, no download wait).
+     *   3. Highest quality within the 4K ceiling (prefer 4K > 1080p > 720p).
+     *   4. Prefer 5.1 audio over higher formats (Atmos/7.1 are penalized).
+     *   5. Most seeders (fastest for the debrid to serve / least likely to stall).
      * CAM/telesync rips are pushed to the bottom.
      */
     private fun score(option: StreamOption, preferredQuality: Int): Long {
         var s = 0L
-        // (1) Cached first — by far the biggest speed factor.
+
+        // ── HARD CONSTRAINT: never pick anything above 4K ──
+        if (option.quality > 2160) return -10_000_000L
+
+        // ── Audio penalty: prefer 5.1 or lower, penalize >5.1 formats ──
+        val badges = option.badges.map { it.lowercase(java.util.Locale.ROOT) }
+        val hasHighAudio = badges.any { it == "atmos" || it == "truehd" || it == "dts:x" || it == "dts-hd" || it == "7.1" }
+        val has51 = badges.any { it == "5.1" }
+        if (hasHighAudio && !has51) s -= 50_000  // penalize >5.1 audio (still selectable as fallback)
+
+        // (1) Cached first — by far the biggest speed factor for autoplay.
         if (option.instant) s += 1_000_000
-        // (2) Closest to preferred quality (range ~0..100k; gaps between
-        //     resolutions are tens of thousands, so quality outranks seeders).
-        s += (100_000 - kotlin.math.abs(option.quality - preferredQuality) * 40).coerceAtLeast(0).toLong()
-        // (3) Most seeders — capped so it only breaks ties within the same
-        //     cached + quality tier (max +5000).
+
+        // (2) Highest quality within the 4K ceiling (prefer higher).
+        // Use preferredQuality as target: pick closest to it but never above 4K.
+        val effectivePreferred = preferredQuality.coerceAtMost(2160)
+        s += (100_000 - kotlin.math.abs(option.quality - effectivePreferred) * 40).coerceAtLeast(0).toLong()
+
+        // (3) Bonus for having 5.1 audio (the preferred format).
+        if (has51) s += 10_000
+
+        // (4) Most seeders — capped so it only breaks ties (max +5000).
         s += (option.seeders.coerceIn(0, 1000) * 5).toLong()
-        val lower = option.label.lowercase(Locale.ROOT)
+
+        // Push garbage rips to the bottom.
+        val lower = option.label.lowercase(java.util.Locale.ROOT)
         if (lower.contains("cam") || lower.contains("hdts") || lower.contains("telesync")) s -= 200_000
         return s
     }
