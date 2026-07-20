@@ -181,7 +181,11 @@ private fun HomeContent(
     val listState = rememberLazyListState()
     LaunchedEffect(focusedRowIndex) {
         if (focusedRowIndex >= 0) {
-            listState.scrollToItem(index = focusedRowIndex, scrollOffset = 0)
+            // For the first content row (lazyIndex 1), keep hero visible by
+            // scrolling to item 0 (hero). For all subsequent rows, scroll so
+            // the focused row is at the viewport top (hero hidden above).
+            val scrollTarget = if (focusedRowIndex <= 1) 0 else focusedRowIndex
+            listState.scrollToItem(index = scrollTarget, scrollOffset = 0)
         }
     }
 
@@ -285,49 +289,50 @@ private fun HomeContent(
                 .fillMaxHeight()
         )
 
-        // LAYER 4 — Content: FIXED hero info + SCROLLABLE rows
-        // These are in a Column so the info block stays anchored and only
-        // the LazyColumn below it scrolls. The backdrop stays full-bleed
-        // behind both regions.
+        // LAYER 4 — Content: Backdrop stays full-bleed, content scrolls over it.
+        // The LazyColumn fills the entire area (past nav rail). HeroInfoBlock is
+        // item[0] so it scrolls away when focus moves to content rows — no fixed
+        // split means scrollToItem aligns directly to viewport top.
         Row(Modifier.fillMaxSize()) {
             // Space for nav rail
             Spacer(Modifier.width(56.dp))
 
-            Column(Modifier.fillMaxSize()) {
-                // ── FIXED: Hero info block (never scrolls) ───────────────────
-                HeroInfoBlock(
-                    item = currentFeaturedItem,
-                    extra = currentFeaturedItem?.let {
-                        state.heroExtras["${it.type}_${it.id}"]
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(HERO_HEIGHT)
-                )
+            // Single LazyColumn — hero info + all content rows in one scrollable list.
+            // No Column wrapper splitting them. scrollToItem(N) aligns item N to the
+            // actual viewport top, fully hiding everything above.
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clipToBounds()
+                    .background(Color.Transparent),
+                contentPadding = PaddingValues(bottom = 48.dp),
+                userScrollEnabled = false
+            ) {
+                // ── Hero info block (item 0 — scrolls with content) ──────────
+                item(key = "hero_info") {
+                    HeroInfoBlock(
+                        item = currentFeaturedItem,
+                        extra = currentFeaturedItem?.let {
+                            state.heroExtras["${it.type}_${it.id}"]
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(HERO_HEIGHT)
+                    )
+                }
 
-                // ── SCROLLABLE: LazyColumn (only rows scroll) ────────────────
-                // Transparent background — backdrop shows through everywhere.
-                // No boundary gradient — backdrop flows seamlessly from hero to rows.
-                // When focus moves to a row, scroll so that row is at the top —
-                // previous row scrolls up and hides behind the hero area.
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clipToBounds()
-                        .background(Color.Transparent),
-                    contentPadding = PaddingValues(bottom = 48.dp),
-                    userScrollEnabled = false
-                ) {
-                    // Single unified loop — every section gets the same snap wrapper.
-                    // The index from itemsIndexed IS the real LazyColumn item index.
-                    itemsIndexed(sections, key = { _, key -> key }) { index, sectionKey ->
-                        Box(Modifier.onFocusChanged { focusState ->
-                            if (focusState.hasFocus && index != lastSnappedIndex) {
-                                lastSnappedIndex = index
-                                focusedRowIndex = index
-                            }
-                        }) {
+                // ── Content rows (unified sections list) ─────────────────────
+                itemsIndexed(sections, key = { _, key -> key }) { index, sectionKey ->
+                    // Offset by 1 because hero_info is item 0.
+                    // The real LazyColumn index for this section is (index + 1).
+                    val lazyIndex = index + 1
+                    Box(Modifier.onFocusChanged { focusState ->
+                        if (focusState.hasFocus && lazyIndex != lastSnappedIndex) {
+                            lastSnappedIndex = lazyIndex
+                            focusedRowIndex = lazyIndex
+                        }
+                    }) {
                             when (sectionKey) {
                                 "genres_${currentTab.name}" -> {
                                     val genreMedia = when (currentTab) {
@@ -413,7 +418,6 @@ private fun HomeContent(
                         }
                     }
                 }
-            }
         }
     }
 
