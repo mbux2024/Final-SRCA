@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -174,17 +173,6 @@ private fun HomeContent(
     // ── Focus-driven backdrop state ──────────────────────────────────────────
     var focusedItem by remember { mutableStateOf<CatalogItem?>(null) }
 
-    // Track which LazyColumn item has focus for scroll snap.
-    var focusedRowIndex by remember { mutableStateOf(-1) }
-    var lastSnappedIndex by remember { mutableStateOf(-1) }
-
-    val listState = rememberLazyListState()
-    LaunchedEffect(focusedRowIndex) {
-        if (focusedRowIndex >= 0) {
-            listState.scrollToItem(index = focusedRowIndex, scrollOffset = 0)
-        }
-    }
-
     // ── Build a single flat list of ALL sections ─────────────────────────────
     // Every section is an entry with a stable key. The LazyColumn renders them
     // via itemsIndexed so the index used for scroll-snap is always correct —
@@ -311,21 +299,18 @@ private fun HomeContent(
                 // When focus moves to a row, scroll so that row is at the top —
                 // previous row scrolls up and hides behind the hero area.
                 LazyColumn(
-                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .clipToBounds()
                         .background(Color.Transparent),
-                    contentPadding = PaddingValues(bottom = 48.dp),
-                    userScrollEnabled = false
+                    contentPadding = PaddingValues(bottom = 48.dp)
                 ) {
-                    // Single unified loop — every section gets the same snap wrapper.
-                    // The index from itemsIndexed IS the real LazyColumn item index.
+                    // Single unified loop — every section gets the same focus wrapper.
                     itemsIndexed(sections, key = { _, key -> key }) { index, sectionKey ->
                         Box(Modifier.onFocusChanged { focusState ->
-                            if (focusState.hasFocus && index != lastSnappedIndex) {
-                                lastSnappedIndex = index
-                                focusedRowIndex = index
+                            if (focusState.hasFocus) {
+                                // Update backdrop when a row gains focus (for any card within it)
+                                // No scroll manipulation — let Compose's focus system handle it.
                             }
                         }) {
                             when (sectionKey) {
