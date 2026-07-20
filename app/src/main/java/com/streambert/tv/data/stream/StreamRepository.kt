@@ -1,8 +1,15 @@
 package com.streambert.tv.data.stream
 
+import android.util.Log
 import com.streambert.tv.data.realdebrid.RealDebridRepository
 import com.streambert.tv.data.settings.SettingsRepository
 import com.streambert.tv.data.torbox.TorBoxRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
 /**
@@ -111,6 +118,168 @@ class StreamRepository(
         buildOptions(imdbId, season, episode)
     } catch (e: Exception) {
         emptyList()
+    }
+
+    /**
+     * Incremental stream loading — emits partial results as each addon/provider
+     * completes, without waiting for all to finish. Each emission is the full
+     * accumulated, deduplicated, scored list so far.
+     *
+     * The flow completes once all providers have finished or timed out.
+     */
+    fun listStreamsFlow(
+        imdbId: String,
+        season: Int? = null,
+        episode: Int? = null
+    ): Flow<StreamLoadingState> = flow {
+        val sources = settings.activeAddonSources()
+        if (sources.isEmpty()) {
+            emit(StreamLoadingState(emptyList(), allDone = true, error = "No addons configured."))
+            return@flow
+        }
+
+        val type = if (season != null && episode != null) "series" else "movie"
+        val id = if (type == "series") "$imdbId:$season:$episode" else imdbId
+        val preferred = qualityToInt(settings.currentPreferredQuality())
+        val hasTorBox = settings.currentTorboxKey().isNotBlank()
+        val hasRealDebrid = settings.currentRealDebridKey().isNotBlank()
+        val filters = settings.currentStreamFilters()
+
+        val accumulated = mutableListOf<StreamOption>()
+        val seenKeys = HashSet<String>()
+        var providersRemaining = sources.size
+        val startTime = System.currentTimeMillis()
+
+        Log.d(TAG, "┌─ Source loading started: ${sources.size} provider(s) for $type/$id")
+
+        // Emit initial loading state
+        emit(StreamLoadingState(emptyList(), allDone = false, providersTotal = sources.size, providersComplete = 0))
+
+        supervisorScope {
+            val jobs = sources.map { src ->
+                async {
+                    val providerStart = System.currentTimeMillis()
+                    Log.d(TAG, "│  ▶ [${src.label}] started")
+
+                    val result = withTimeoutOrNull(PER_PROVIDER_TIMEOUT_MS) {
+                        runCatching {
+                            val raw = api.getStreams("${src.baseUrl}stream/$type/$id.json").streams
+                            val streams = raw.filter {
+                                if (src.resolveViaTorBox) hashOf(it) != null else !it.url.isNullOrBlank()
+                            }
+                            if (streams.isEmpty()) return@runCatching emptyList<StreamOption>()
+
+                            val hashByStream = streams.associateWith { hashOf(it) }
+                            val cached = if (src.isTorBox && hasTorBox)
+                                torbox.instantHashes(hashByStream.values.filterNotNull().distinct())
+                            else emptySet()
+
+                            val options = mutableListOf<StreamOption>()
+                            streams.forEach { s ->
+                                val text = "${s.name.orEmpty()} ${s.title.orEmpty()}"
+                                val q = parseQuality(text.lowercase(Locale.ROOT))
+                                val hash = hashByStream[s]
+
+                                fun option(debrid: String?, instant: Boolean) = StreamOption(
+                                    url = if (src.resolveViaTorBox) null else s.url,
+                                    hash = hash,
+                                    label = s.label,
+                                    qualityLabel = qualityLabel(q),
+                                    quality = q,
+                                    cached = instant,
+                                    instant = instant,
+                                    provider = src.label,
+                                    debrid = debrid,
+                                    badges = ReleaseBadges.parse(text),
+                                    sizeLabel = parseSize(text),
+                                    container = parseContainer(text),
+                                    language = parseLanguage(text),
+                                    seeders = parseSeeders(text)
+                                )
+
+                                if (src.resolveViaTorBox) {
+                                    if (hasTorBox) options.add(option(SettingsRepository.DEBRID_TORBOX, hash != null && hash in cached))
+                                    if (hasRealDebrid) options.add(option(SettingsRepository.DEBRID_RD, markerCached(s)))
+                                } else {
+                                    val instant = if (src.isTorBox) (hash != null && hash in cached) else markerCached(s)
+                                    options.add(option(src.debrid, instant))
+                                }
+                            }
+                            options
+                        }.getOrDefault(emptyList())
+                    }
+
+                    val elapsed = System.currentTimeMillis() - providerStart
+                    ProviderResult(src.label, result, elapsed)
+                }
+            }
+
+            // Collect results as each provider completes (not in order, but as they finish)
+            for (job in jobs) {
+                val result = job.await()
+                providersRemaining--
+                val providersComplete = sources.size - providersRemaining
+
+                if (result.options == null) {
+                    Log.d(TAG, "│  ✗ [${result.providerLabel}] TIMED OUT after ${result.elapsedMs}ms")
+                } else if (result.options.isEmpty()) {
+                    Log.d(TAG, "│  ○ [${result.providerLabel}] returned 0 sources (${result.elapsedMs}ms)")
+                } else {
+                    Log.d(TAG, "│  ✓ [${result.providerLabel}] returned ${result.options.size} sources (${result.elapsedMs}ms)")
+
+                    // Deduplicate and add new sources
+                    val newOptions = result.options.filter { opt ->
+                        val key = "${opt.hash ?: opt.url}_${opt.debrid}"
+                        seenKeys.add(key) // returns false if already existed
+                    }
+                    if (newOptions.isNotEmpty()) {
+                        accumulated.addAll(newOptions)
+                    }
+                }
+
+                // Apply filters + sort, then emit current state
+                val filtered = filters.applyTo(accumulated)
+                val sorted = filtered
+                    .distinctBy { "${it.hash ?: it.url}_${it.debrid}" }
+                    .sortedByDescending { score(it, preferred) }
+
+                val isFirstResult = providersComplete == 1 && sorted.isNotEmpty()
+                if (isFirstResult) {
+                    val firstSourceTime = System.currentTimeMillis() - startTime
+                    Log.d(TAG, "│  ★ First source available at ${firstSourceTime}ms")
+                }
+
+                emit(StreamLoadingState(
+                    sources = sorted,
+                    allDone = providersRemaining == 0,
+                    providersTotal = sources.size,
+                    providersComplete = providersComplete
+                ))
+            }
+        }
+
+        val totalTime = System.currentTimeMillis() - startTime
+        Log.d(TAG, "└─ Source loading complete: ${accumulated.size} total sources in ${totalTime}ms")
+    }
+
+    /** State emitted by [listStreamsFlow] as providers complete incrementally. */
+    data class StreamLoadingState(
+        val sources: List<StreamOption>,
+        val allDone: Boolean,
+        val error: String? = null,
+        val providersTotal: Int = 0,
+        val providersComplete: Int = 0
+    )
+
+    private data class ProviderResult(
+        val providerLabel: String,
+        val options: List<StreamOption>?,  // null = timed out
+        val elapsedMs: Long
+    )
+
+    companion object {
+        private const val TAG = "StreamRepo"
+        private const val PER_PROVIDER_TIMEOUT_MS = 20_000L  // 20s per provider
     }
 
     // ── Core ─────────────────────────────────────────────────────────────

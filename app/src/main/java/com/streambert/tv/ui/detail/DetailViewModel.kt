@@ -253,16 +253,19 @@ class DetailViewModel(
                 )
                 return@launch
             }
-            val list = try {
-                streams.listStreams(imdb, season, episode)
-            } catch (e: Exception) {
-                emptyList()
+            // Use incremental loading — UI updates progressively as each provider
+            // returns results, without waiting for all to finish.
+            streams.listStreamsFlow(imdb, season, episode).collect { loadingState ->
+                _state.value = _state.value.copy(
+                    sourcesLoading = !loadingState.allDone,
+                    sources = loadingState.sources,
+                    sourcesError = when {
+                        loadingState.allDone && loadingState.sources.isEmpty() ->
+                            loadingState.error ?: "No cached sources found yet."
+                        else -> null
+                    }
+                )
             }
-            _state.value = _state.value.copy(
-                sourcesLoading = false,
-                sources = list,
-                sourcesError = if (list.isEmpty()) "No cached sources found yet." else null
-            )
         }
     }
 
