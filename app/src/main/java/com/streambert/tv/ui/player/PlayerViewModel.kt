@@ -11,7 +11,6 @@ import com.streambert.tv.data.stream.StreamResolution
 import com.streambert.tv.data.stream.SubtitleRepository
 import com.streambert.tv.data.stream.SubtitleTrack
 import com.streambert.tv.data.tmdb.TmdbRepository
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -121,18 +120,14 @@ class PlayerViewModel(
             val s = season.takeIf { it > 0 }
             val e = episode.takeIf { it > 0 }
 
-            // ── PARALLEL: compute next episode in background (don't block playback) ──
-            val nextEpDeferred = if (season > 0) kotlinx.coroutines.async { computeNextEpisode() } else null
-
             // ── FAST PATH: if we have a direct URL, start immediately ──
             if (directUrl.isNotBlank()) {
                 playingUrl = directUrl
                 playingHash = directHash
-                nextEpisode = nextEpDeferred?.await()
-                val hasNext = nextEpisode != null
-                _state.value = PlayerUiState.Ready(directUrl, title.ifBlank { "Stream" }, startMs, tunneling, emptyList(), subScale, subStyle, engine, prefs, hasNext)
-                // Fetch subtitles in background AFTER playback starts
+                _state.value = PlayerUiState.Ready(directUrl, title.ifBlank { "Stream" }, startMs, tunneling, emptyList(), subScale, subStyle, engine, prefs, false)
+                // Compute next episode + fetch subtitles in background AFTER playback starts
                 launchSubtitleFetch(s, e)
+                launchNextEpisodeCompute()
                 return@launch
             }
 
@@ -143,11 +138,9 @@ class PlayerViewModel(
                     is StreamResolution.Ready -> {
                         playingUrl = r.url
                         playingHash = directHash
-                        nextEpisode = nextEpDeferred?.await()
-                        val hasNext = nextEpisode != null
-                        _state.value = PlayerUiState.Ready(r.url, title.ifBlank { r.label }, startMs, tunneling, emptyList(), subScale, subStyle, engine, prefs, hasNext)
-                        // Fetch subtitles in background AFTER playback starts
+                        _state.value = PlayerUiState.Ready(r.url, title.ifBlank { r.label }, startMs, tunneling, emptyList(), subScale, subStyle, engine, prefs, false)
                         launchSubtitleFetch(s, e)
+                        launchNextEpisodeCompute()
                     }
                     is StreamResolution.Failure -> _state.value = PlayerUiState.Error(r.message)
                     is StreamResolution.Progress -> _state.value = PlayerUiState.Resolving(r.message)
@@ -175,11 +168,10 @@ class PlayerViewModel(
                 is StreamResolution.Ready -> {
                     playingUrl = result.url
                     playingHash = ""
-                    nextEpisode = nextEpDeferred?.await()
-                    val hasNext = nextEpisode != null
-                    _state.value = PlayerUiState.Ready(result.url, title.ifBlank { result.label }, startMs, tunneling, emptyList(), subScale, subStyle, engine, prefs, hasNext)
-                    // Fetch subtitles in background AFTER playback starts
+                    _state.value = PlayerUiState.Ready(result.url, title.ifBlank { result.label }, startMs, tunneling, emptyList(), subScale, subStyle, engine, prefs, false)
+                    // Fetch subtitles + compute next episode in background
                     launchSubtitleFetch(s, e)
+                    launchNextEpisodeCompute()
                 }
                 is StreamResolution.Failure ->
                     _state.value = PlayerUiState.Error(result.message)
@@ -203,6 +195,21 @@ class PlayerViewModel(
                 if (cur is PlayerUiState.Ready) {
                     _state.value = cur.copy(subtitles = subs)
                 }
+            }
+        }
+    }
+
+    /**
+     * Computes next episode in background and updates the Ready state.
+     * Runs AFTER playback starts so it doesn't delay video.
+     */
+    private fun launchNextEpisodeCompute() {
+        if (season <= 0) return
+        viewModelScope.launch {
+            nextEpisode = computeNextEpisode()
+            val cur = _state.value
+            if (cur is PlayerUiState.Ready && nextEpisode != null) {
+                _state.value = cur.copy(hasNextEpisode = true)
             }
         }
     }
