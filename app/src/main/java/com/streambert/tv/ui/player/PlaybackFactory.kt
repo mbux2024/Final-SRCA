@@ -37,6 +37,14 @@ import okhttp3.OkHttpClient
  */
 object PlaybackFactory {
 
+    // Shared OkHttp client — reuses TCP/TLS connections across player instances.
+    // NuvioTV uses a similar shared pool (8 connections, HTTP/2).
+    private val sharedHttpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .connectionPool(okhttp3.ConnectionPool(5, 3, java.util.concurrent.TimeUnit.MINUTES))
+        .build()
+
     @UnstableApi
     fun create(
         context: Context,
@@ -83,13 +91,10 @@ object PlaybackFactory {
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
 
-        // OkHttp-backed HTTP stack (robust redirects/timeouts). DefaultMediaSourceFactory
-        // auto-selects the right source for the content — progressive (MKV/MP4/WebM),
-        // HLS (.m3u8), DASH (.mpd) or SmoothStreaming — because those modules are on the
-        // classpath. This is what gives us broad container/streaming coverage.
-        val httpDataSourceFactory = OkHttpDataSource.Factory(
-            OkHttpClient.Builder().build()
-        ).setUserAgent("StreambertTV")
+        // Shared OkHttp client with connection pooling (reuses TCP/TLS connections
+        // across player instances for faster startup on subsequent plays).
+        val httpDataSourceFactory = OkHttpDataSource.Factory(sharedHttpClient)
+            .setUserAgent("StreambertTV")
 
         val mediaSourceFactory = DefaultMediaSourceFactory(context)
             .setDataSourceFactory(httpDataSourceFactory)
