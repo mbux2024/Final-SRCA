@@ -286,6 +286,24 @@ private fun Header(
                         fontWeight = FontWeight.Bold
                     )
                 }
+            } else if (state.rating > 0.0) {
+                // Fallback: show TMDB community rating when MDBList/IMDb have no data
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(Color(0xFF01B4E4))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                    ) {
+                        Text("TMDB", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
+                    }
+                    Text(
+                        "  ${"%.1f".format(state.rating)}",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             if (state.overview.isNotBlank()) {
                 Text(
