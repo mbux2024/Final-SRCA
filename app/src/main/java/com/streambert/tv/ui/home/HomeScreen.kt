@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -313,6 +314,7 @@ private fun HomeContent(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
+                        .clipToBounds()
                         .background(Color.Transparent),
                     contentPadding = PaddingValues(bottom = 48.dp),
                     userScrollEnabled = false
