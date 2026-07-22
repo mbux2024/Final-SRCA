@@ -36,7 +36,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 
-/** A focusable poster card used inside rows. */
+/** A focusable poster card used inside rows — Apple TV-style focus. */
 @Composable
 fun MediaCard(
     item: CatalogItem,
@@ -51,13 +51,12 @@ fun MediaCard(
         Card(
             onClick = onClick,
             border = CardDefaults.border(
-                focusedBorder = Border(
-                    border = androidx.compose.foundation.BorderStroke(
-                        3.dp, MaterialTheme.colorScheme.primary
-                    )
-                )
+                // Apple TV: no colored border, focus indicated by scale + shadow
+                focusedBorder = Border.None
             ),
-            scale = CardDefaults.scale(focusedScale = 1.3f),
+            // Apple TV focus: subtle 1.1x scale with smooth animation
+            scale = CardDefaults.scale(focusedScale = 1.1f),
+            shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)

@@ -83,7 +83,7 @@ import androidx.tv.material3.Text
 // ─────────────────────────────────────────────────────────────────────────────
 // HERO_HEIGHT — only constrains the hero info block content, NOT the backdrop.
 // ─────────────────────────────────────────────────────────────────────────────
-private val HERO_HEIGHT = 250.dp
+private val HERO_HEIGHT = 340.dp
 
 @Composable
 fun HomeScreen(
@@ -647,22 +647,21 @@ private fun GenreChip(genre: Genre, onClick: () -> Unit, modifier: Modifier = Mo
     Card(
         onClick = onClick,
         modifier = modifier,
-        scale = CardDefaults.scale(focusedScale = 1.05f),
-        shape = CardDefaults.shape(shape = RoundedCornerShape(24.dp)),
+        // Apple TV focus: subtle scale, no border, clean pill shape
+        scale = CardDefaults.scale(focusedScale = 1.08f),
+        shape = CardDefaults.shape(shape = RoundedCornerShape(20.dp)),
         colors = CardDefaults.colors(
-            containerColor = Color(0x44000000),
-            focusedContainerColor = Color(0x88000000)
+            containerColor = Color(0xFF1C1C1E),      // Apple dark system gray
+            focusedContainerColor = Color(0xFF3A3A3C) // Slightly brighter on focus
         ),
-        border = CardDefaults.border(
-            focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = RoundedCornerShape(24.dp))
-        )
+        border = CardDefaults.border(border = Border.None, focusedBorder = Border.None)
     ) {
         Text(
             genre.name,
             style = MaterialTheme.typography.titleSmall,
             color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 14.dp)
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
         )
     }
 }
@@ -693,11 +692,10 @@ private fun ServicesRow(onOpenService: (StreamingService) -> Unit) {
 private fun ServiceCard(service: StreamingService, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = 1.12f),
-        shape = CardDefaults.shape(shape = RoundedCornerShape(10.dp)),
-        border = CardDefaults.border(
-            focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = RoundedCornerShape(10.dp))
-        ),
+        // Apple TV focus: 1.1x scale, no border, shadow elevation
+        scale = CardDefaults.scale(focusedScale = 1.1f),
+        shape = CardDefaults.shape(shape = RoundedCornerShape(14.dp)),
+        border = CardDefaults.border(border = Border.None, focusedBorder = Border.None),
         modifier = Modifier
             .width(150.dp)
             .height(84.dp)

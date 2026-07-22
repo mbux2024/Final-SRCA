@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
@@ -44,7 +45,7 @@ import androidx.tv.material3.Text
 
 private val ROW_PADDING = 48.dp
 
-// ── Landscape card (standard Netflix-style rows) ─────────────────────────────
+// ── Landscape card (Apple TV-style focus: scale + shadow + dim siblings) ─────
 
 @Composable
 fun LandscapeCard(
@@ -60,9 +61,17 @@ fun LandscapeCard(
 ) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = 1.3f),
+        // Apple TV focus: subtle 1.1x scale (not Netflix's aggressive 1.3x)
+        scale = CardDefaults.scale(focusedScale = 1.1f),
         border = CardDefaults.border(
-            focusedBorder = Border(BorderStroke(3.dp, MaterialTheme.colorScheme.primary))
+            // No harsh border — Apple TV uses shadow/elevation, not colored outlines
+            focusedBorder = Border.None
+        ),
+        // Continuous corner radius (Apple TV's squircle-like feel)
+        shape = CardDefaults.shape(shape = RoundedCornerShape(14.dp)),
+        colors = CardDefaults.colors(
+            containerColor = Color(0xFF1A1A1A),
+            focusedContainerColor = Color(0xFF1A1A1A)
         ),
         modifier = modifier
             .width(208.dp)
@@ -260,10 +269,11 @@ fun ContinueWatchingRow(
 @Composable
 private fun RowTitle(title: String) {
     Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onBackground,
-        fontWeight = FontWeight.Bold,
+        text = title.uppercase(java.util.Locale.ROOT),
+        style = MaterialTheme.typography.labelLarge,
+        color = Color(0xFFAAAAAA),
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
         modifier = Modifier.padding(start = ROW_PADDING, bottom = 10.dp)
     )
 }
